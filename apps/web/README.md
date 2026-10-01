@@ -6,6 +6,10 @@ Frontend statis untuk ShotCreator — upload screenshot, isi/edit teks hook
 Vanilla HTML/CSS/JS, tanpa framework. Bisa di-host sebagai static site
 (mis. Cloudflare Pages) dengan backend API terpisah.
 
+**Catatan UX:** user TIDAK disuruh setting AI (provider/base URL/model/API key).
+Cukup centang "Buatkan hook otomatis pakai AI" lalu isi deskripsi cerita.
+Konfigurasi AI dipegang server via env vars.
+
 ## Jalankan lokal
 
 Butuh backend API (dibuat di fase berikutnya). Untuk coba UI-nya saja:
@@ -25,8 +29,6 @@ itu normal, UI-nya tetap bisa dilihat.
 Request:
 ```json
 {
-  "ai": {"mode": "ai", "provider": "9router", "base_url": "http://localhost:20128/v1",
-          "model": "gpt-4o-mini", "api_key": "opsional"},
   "story": "deskripsi cerita dari screenshot"
 }
 ```
@@ -36,6 +38,10 @@ Response:
  "bot_lines": ["BARIS BAWAH 1", "BARIS BAWAH 2"]}
 ```
 
+Konfigurasi AI (base URL, model, API key) dibaca server dari env vars
+(`SHOTCREATOR_AI_*`) — tidak dikirim dari frontend. Kalau belum diset,
+server return 400 `{"error": "AI belum dikonfigurasi di server..."}`.
+
 ### POST /api/jobs — buat job render
 Request:
 ```json
@@ -43,10 +49,7 @@ Request:
   "images": [{"name": "ss1.png", "data_url": "data:image/png;base64,..."}],
   "top_lines": ["TEKS ATAS"],
   "bot_lines": ["TEKS BAWAH"],
-  "audio": {"name": "musik.mp3", "data_url": "data:audio/mpeg;base64,..."} | null,
-  "ai": {"mode": "manual"}
-    // atau {"mode": "ai", "provider": "...", "base_url": "...",
-    //         "model": "...", "api_key": "...", "story": "..."}
+  "audio": {"name": "musik.mp3", "data_url": "data:audio/mpeg;base64,..."} | null
 }
 ```
 Response: `{"job_id": "abc123"}`
@@ -68,13 +71,12 @@ Response:
 
 ## Perilaku AI di backend
 
-- `ai.mode: "manual"` → render langsung pakai `top_lines`/`bot_lines`
-  yang dikirim (engine deterministik, tanpa AI).
-- `ai.mode: "ai"` + `top_lines`/`bot_lines` kosong + `story` terisi →
-  backend generate hook dulu via provider OpenAI-compatible
-  (`packages/ai`), lalu render.
-- `api_key` dari frontend opsional — backend boleh mengabaikannya
-  dan memakai env `SHOTCREATOR_AI_API_KEY`.
+- `POST /api/hooks` membaca konfigurasi AI dari env vars server
+  (`SHOTCREATOR_AI_BASE_URL` wajib, `SHOTCREATOR_AI_API_KEY` /
+  `SHOTCREATOR_AI_MODEL` opsional). Frontend tidak mengirim config AI.
+- `POST /api/jobs` merender langsung pakai `top_lines`/`bot_lines`
+  yang dikirim (engine deterministik, tanpa AI). Field `ai.*` dari client
+  diabaikan.
 
 ## Struktur file
 
