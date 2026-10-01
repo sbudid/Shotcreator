@@ -116,7 +116,8 @@ document.querySelectorAll('input[name="aiMode"]').forEach((r) => {
   r.addEventListener("change", () => {
     const mode = document.querySelector('input[name="aiMode"]:checked').value;
     $("visionDesc").classList.toggle("hidden", mode !== "vision");
-    $("textDesc").classList.toggle("hidden", mode !== "text");
+    $("textDesc").classList.toggle("hidden", mode !== "text" && mode !== "money");
+    $("moneyDesc").classList.toggle("hidden", mode !== "money");
   });
 });
 
@@ -158,28 +159,56 @@ $("btnGenHooks").addEventListener("click", async () => {
   }
 
   // Text mode: dari deskripsi cerita via 9router
-  const story = $("story").value.trim();
-  if (!story) {
-    btn.disabled = false;
-    return setStatus("Isi dulu deskripsi ceritanya.", "error");
+  if (mode === "text") {
+    const story = $("story").value.trim();
+    if (!story) {
+      btn.disabled = false;
+      return setStatus("Isi dulu deskripsi ceritanya.", "error");
+    }
+    setStatus("Membuat hook dengan AI…");
+    try {
+      const res = await fetch("/api/hooks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ story }),
+      });
+      if (!res.ok) throw new Error("server: HTTP " + res.status);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      $("topLines").value = (data.top_lines || []).join("\n");
+      $("botLines").value = (data.bot_lines || []).join("\n");
+      setStatus("Hook berhasil dibuat. Cek & edit dulu kalau perlu, baru render.", "ok");
+    } catch (err) {
+      setStatus("Gagal membuat hook: " + err.message, "error");
+    } finally {
+      btn.disabled = false;
+    }
+    return;
   }
-  setStatus("Membuat hook dengan AI…");
-  try {
-    const res = await fetch("/api/hooks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ story }),
-    });
-    if (!res.ok) throw new Error("server: HTTP " + res.status);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    $("topLines").value = (data.top_lines || []).join("\n");
-    $("botLines").value = (data.bot_lines || []).join("\n");
-    setStatus("Hook berhasil dibuat. Cek & edit dulu kalau perlu, baru render.", "ok");
-  } catch (err) {
-    setStatus("Gagal membuat hook: " + err.message, "error");
-  } finally {
-    btn.disabled = false;
+
+  // Money mode: dari deskripsi teks via antrean money
+  if (mode === "money") {
+    const story = $("story").value.trim();
+    if (!story) {
+      btn.disabled = false;
+      return setStatus("Isi dulu deskripsi ceritanya.", "error");
+    }
+    setStatus("AI money sedang membuat hook… (sekitar 1 menit)");
+    try {
+      const res = await fetch("/api/hooks-money", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ story }),
+      });
+      if (!res.ok) throw new Error("server: HTTP " + res.status);
+      const data = await res.json();
+      if (data.error || !data.job_id) throw new Error(data.error || "job_id tidak ada");
+      await pollMoneyHooks(data.job_id);
+    } catch (err) {
+      setStatus("Gagal membuat hook: " + err.message, "error");
+      btn.disabled = false;
+    }
+    return;
   }
 });
 
@@ -205,6 +234,31 @@ async function pollVisionHooks(jobId) {
     }
   }
   setStatus("AI-nya kelamaan. Coba lagi atau pakai mode teks.", "error");
+  btn.disabled = false;
+}
+
+async function pollMoneyHooks(jobId) {
+  const btn = $("btnGenHooks");
+  for (let i = 0; i < 40; i++) {  // maks ~2 menit
+    await new Promise((r) => setTimeout(r, 3000));
+    try {
+      const res = await fetch("/api/hooks-money/" + encodeURIComponent(jobId));
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data.status === "done") {
+        $("topLines").value = (data.top_lines || []).join("\n");
+        $("botLines").value = (data.bot_lines || []).join("\n");
+        setStatus("Hook berhasil dibuat AI money. Cek & edit dulu kalau perlu.", "ok");
+        btn.disabled = false;
+        return;
+      }
+      if (data.status === "error") throw new Error(data.error || "gagal");
+      setStatus(`AI money sedang membuat hook… (${i * 3} detik)`);
+    } catch (err) {
+      if (err.message && !err.message.includes("HTTP")) throw err;
+    }
+  }
+  setStatus("AI-nya kelamaan. Coba lagi.", "error");
   btn.disabled = false;
 }
 
