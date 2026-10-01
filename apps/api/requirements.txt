@@ -1,0 +1,3 @@
+# Engine butuh Pillow (PIL) untuk menggambar frame.
+# Server API-nya sendiri stdlib-only.
+Pillow>=10
