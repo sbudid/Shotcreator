@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shotcreator-ai"
+version = "0.1.0"
+description = "Pluggable AI providers for shotcreator (OpenAI-compatible, manual)"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["shotcreator_ai*"]
