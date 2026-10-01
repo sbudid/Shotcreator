@@ -44,12 +44,16 @@
     <div id="aiConfig" class="hidden">
       <label class="checkline"><input type="radio" name="aiMode" value="vision" checked> Lihat screenshot langsung <span class="badge">vision</span></label>
       <label class="checkline"><input type="radio" name="aiMode" value="text"> Dari deskripsi teks</label>
+      <label class="checkline"><input type="radio" name="aiMode" value="money"> Dari deskripsi teks <span class="badge">AI money</span></label>
       <div id="visionDesc">
         <p class="hint">AI akan melihat screenshot yang kamu upload di atas, lalu buatkan hook-nya. Proses ~1 menit.</p>
       </div>
       <div id="textDesc" class="hidden">
         <label for="story">Deskripsi cerita</label>
         <textarea id="story" rows="4" placeholder="Ceritakan isi screenshot-nya, misal: kisah ibu yang doanya menyelamatkanku saat kecelakaan..."></textarea>
+      </div>
+      <div id="moneyDesc" class="hidden">
+        <p class="hint">AI money yang buatkan hook dari deskripsi di atas. Proses ~1 menit, tanpa API key.</p>
       </div>
       <button id="btnGenHooks" class="btn secondary" type="button">✨ Buatkan hook</button>
       <p class="hint">Hasilnya masuk ke kolom teks di atas — bisa kamu edit dulu sebelum render.</p>
