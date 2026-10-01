@@ -25,14 +25,14 @@ jadi bisa langsung dipakai standalone.
 | `PORT` | `8000` | Port HTTP |
 | `SHOTCREATOR_DATA` | `./data` | Direktori job & video hasil |
 | `SHOTCREATOR_FONT` | DejaVuSans-Bold | Font bold untuk teks hook (mis. path Inter ExtraBold) |
-| `SHOTCREATOR_AI_BASE_URL` | — | Default base URL AI (dipakai kalau request tidak kirim `api_key`/base_url). Mis. `http://localhost:20128/v1` untuk 9router |
-| `SHOTCREATOR_AI_API_KEY` | — | Default API key AI |
-| `SHOTCREATOR_AI_MODEL` | — | Default model AI |
+| `SHOTCREATOR_AI_BASE_URL` | — | **Wajib** untuk `/api/hooks`: base URL AI OpenAI-compatible. Mis. `http://localhost:20128/v1` untuk 9router |
+| `SHOTCREATOR_AI_API_KEY` | — | API key AI (kalau provider membutuhkannya) |
+| `SHOTCREATOR_AI_MODEL` | — | Model AI (mis. nama model di 9router) |
 
 ## Endpoint
 
-- `POST /api/hooks` — `{ai:{mode,provider,base_url,model,api_key?}, story}` → `{top_lines[], bot_lines[]}`
-- `POST /api/jobs` — `{images:[{name, data_url}], top_lines[], bot_lines[], audio?, ai:{...}, pan_secs?}` → `{job_id}` (202)
+- `POST /api/hooks` — `{story}` → `{top_lines[], bot_lines[]}`. Config AI dari env vars server; kalau `SHOTCREATOR_AI_BASE_URL` belum diset → 400 dengan pesan Indonesia.
+- `POST /api/jobs` — `{images:[{name, data_url}], top_lines[], bot_lines[], audio?, pan_secs?}` → `{job_id}` (202). Field `ai.*` dari client diabaikan.
 - `GET /api/jobs/:id` — `{status: queued|rendering|done|error, progress?, video_url?, top_lines?, bot_lines?, error?}`
 - `GET /videos/:file` — file mp4
 - `GET /api/health` — `{ok: true}`
