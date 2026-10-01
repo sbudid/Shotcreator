@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ShotCreator — Screenshot jadi Video Vertikal</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <h1>🎬 ShotCreator</h1>
+    <p class="tagline">Ubah screenshot cerita jadi video vertikal 1080×1920 siap upload</p>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <div id="status" class="status hidden" role="status"></div>
+
+  <!-- 1. Screenshot -->
+  <section class="card">
+    <h2>1. Screenshot</h2>
+    <p class="hint">Upload 1 atau lebih gambar screenshot cerita. Urutan sesuai urutan upload.</p>
+    <label class="filebtn" for="imageInput">＋ Pilih gambar</label>
+    <input type="file" id="imageInput" accept="image/*" multiple hidden>
+    <div id="thumbs" class="thumbs"></div>
+  </section>
+
+  <!-- 2. Teks hook -->
+  <section class="card">
+    <h2>2. Teks hook</h2>
+    <p class="hint">Satu baris per baris. Teks atas tampil di atas video, teks bawah di bawah.</p>
+    <label for="topLines">Teks atas</label>
+    <textarea id="topLines" rows="3" placeholder="Contoh:&#10;SETAHUN NAIK TURUN,&#10;HARI INI LUNAS"></textarea>
+    <label for="botLines">Teks bawah</label>
+    <textarea id="botLines" rows="3" placeholder="Contoh:&#10;BACA SAMPAI HABIS,&#10;BIKIN MERINDING"></textarea>
+  </section>
+
+  <!-- 3. AI -->
+  <section class="card">
+    <h2>3. Bantuan AI <span class="badge">opsional</span></h2>
+    <div class="radios">
+      <label><input type="radio" name="aiMode" value="manual" checked> Manual — aku isi teks sendiri</label>
+      <label><input type="radio" name="aiMode" value="ai"> Pakai AI — buatkan hook dari deskripsi cerita</label>
+    </div>
+    <div id="aiConfig" class="hidden">
+      <label for="provider">Provider</label>
+      <select id="provider">
+        <option value="9router">9router (OpenAI-compatible)</option>
+        <option value="openai">OpenAI</option>
+        <option value="custom">Custom OpenAI-compatible</option>
+      </select>
+      <label for="baseUrl">Base URL</label>
+      <input type="url" id="baseUrl" placeholder="https://api.openai.com/v1">
+      <label for="model">Model</label>
+      <input type="text" id="model" placeholder="gpt-4o-mini">
+      <label for="apiKey">API key <span class="hint-inline">(opsional — kalau backend belum diset)</span></label>
+      <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off">
+      <label for="story">Deskripsi cerita</label>
+      <textarea id="story" rows="4" placeholder="Ceritakan isi screenshot-nya, misal: kisah ibu yang doanya menyelamatkanku saat kecelakaan..."></textarea>
+      <button id="btnGenHooks" class="btn secondary" type="button">✨ Buatkan hook</button>
+      <p class="hint">Hasilnya masuk ke kolom teks di atas — bisa kamu edit dulu sebelum render.</p>
+    </div>
+  </section>
+
+  <!-- 4. Audio -->
+  <section class="card">
+    <h2>4. Audio <span class="badge">opsional</span></h2>
+    <p class="hint">MP3 musik latar / murottal / voiceover. Kosongkan kalau tanpa audio.</p>
+    <label class="filebtn" for="audioInput">🎵 Pilih file audio</label>
+    <input type="file" id="audioInput" accept="audio/*" hidden>
+    <div id="audioInfo" class="audioinfo hidden">
+      <span id="audioName"></span>
+      <button id="btnClearAudio" class="linkbtn" type="button">hapus</button>
+    </div>
+  </section>
+
+  <!-- 5. Render -->
+  <section class="card">
+    <h2>5. Render</h2>
+    <button id="btnRender" class="btn primary" type="button">🚀 Render video</button>
+  </section>
+
+  <!-- 6. Hasil -->
+  <section id="jobCard" class="card hidden">
+    <h2>Hasil</h2>
+    <div class="jobstatus"><span id="jobLabel">Menunggu…</span></div>
+    <div class="progress"><div id="progressBar" class="progress-bar"></div></div>
+    <video id="preview" class="preview hidden" controls playsinline></video>
+    <a id="btnDownload" class="btn primary hidden" href="#" download="shotcreator.mp4">⬇️ Download video</a>
+  </section>
+
+</main>
+
+<footer class="wrap foot">
+  <p>ShotCreator · engine deterministik + AI adapter OpenAI-compatible</p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
