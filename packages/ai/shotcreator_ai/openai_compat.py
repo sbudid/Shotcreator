@@ -57,7 +57,19 @@ class OpenAICompatProvider(AIProvider):
                      "Authorization": f"Bearer {self.api_key}"},
         )
         with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-            data = json.load(resp)
+            raw = resp.read().decode("utf-8", errors="replace")
+        # Handle SSE-style suffix ("data: [DONE]") yang kadang ditempel 9router
+        raw = raw.strip()
+        if raw.endswith("data: [DONE]"):
+            raw = raw[: -len("data: [DONE]")].strip()
+        # Kalau masih ada baris SSE, ambil baris JSON pertama yang valid
+        if raw.startswith("data:"):
+            for line in raw.splitlines():
+                line = line.strip()
+                if line.startswith("data:") and line != "data: [DONE]":
+                    raw = line[len("data:"):].strip()
+                    break
+        data = json.loads(raw)
         try:
             return data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as e:
