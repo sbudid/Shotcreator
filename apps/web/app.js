@@ -1,8 +1,11 @@
 /* ShotCreator web app — vanilla JS.
+ * Konfigurasi AI (base_url, model, api_key) diset di server via env vars,
+ * bukan oleh user. Frontend cuma kirim {story} ke /api/hooks.
+ *
  * API contract:
- *   POST /api/hooks {ai:{mode,provider,base_url,model,api_key?}, story}
+ *   POST /api/hooks {story}
  *     -> {top_lines[], bot_lines[]}
- *   POST /api/jobs {images[], top_lines[], bot_lines[], audio?, ai:{...}}
+ *   POST /api/jobs {images[], top_lines[], bot_lines[], audio?}
  *     -> {job_id}
  *   GET  /api/jobs/:id
  *     -> {status: "queued"|"rendering"|"done"|"error", progress?, video_url?, error?}
@@ -15,12 +18,6 @@ const state = {
   images: [],   // {id, name, dataUrl}
   audio: null,  // {name, dataUrl}
   pollTimer: null,
-};
-
-const PROVIDER_DEFAULTS = {
-  "9router": { base_url: "http://localhost:20128/v1", model: "" },
-  "openai":  { base_url: "https://api.openai.com/v1", model: "gpt-4o-mini" },
-  "custom":  { base_url: "", model: "" },
 };
 
 /* ---------- helpers ---------- */
@@ -46,19 +43,8 @@ function linesOf(id) {
   return $(id).value.split("\n").map((s) => s.trim()).filter(Boolean);
 }
 
-function aiMode() {
-  return document.querySelector('input[name="aiMode"]:checked').value; // manual | ai
-}
-
-function collectAiConfig() {
-  const provider = $("provider").value;
-  return {
-    mode: "ai",
-    provider,
-    base_url: $("baseUrl").value.trim(),
-    model: $("model").value.trim(),
-    api_key: $("apiKey").value.trim() || undefined,
-  };
+function aiEnabled() {
+  return $("aiToggle").checked; // true | false
 }
 
 /* ---------- images ---------- */
@@ -120,34 +106,15 @@ $("btnClearAudio").addEventListener("click", () => {
   $("audioInfo").classList.add("hidden");
 });
 
-/* ---------- AI mode toggle ---------- */
-document.querySelectorAll('input[name="aiMode"]').forEach((r) => {
-  r.addEventListener("change", () => {
-    $("aiConfig").classList.toggle("hidden", aiMode() !== "ai");
-  });
+/* ---------- AI toggle ---------- */
+$("aiToggle").addEventListener("change", () => {
+  $("aiConfig").classList.toggle("hidden", !aiEnabled());
 });
-
-/* ---------- provider presets ---------- */
-function applyProviderPreset() {
-  const p = $("provider").value;
-  const d = PROVIDER_DEFAULTS[p] || { base_url: "", model: "" };
-  if (!$("baseUrl").value) $("baseUrl").value = d.base_url;
-  if (!$("model").value) $("model").value = d.model;
-  $("baseUrl").placeholder = d.base_url || "https://...";
-}
-$("provider").addEventListener("change", () => {
-  $("baseUrl").value = "";
-  $("model").value = "";
-  applyProviderPreset();
-});
-applyProviderPreset();
 
 /* ---------- generate hooks ---------- */
 $("btnGenHooks").addEventListener("click", async () => {
   const story = $("story").value.trim();
   if (!story) return setStatus("Isi dulu deskripsi ceritanya.", "error");
-  const ai = collectAiConfig();
-  if (!ai.base_url) return setStatus("Isi Base URL provider AI-nya.", "error");
   const btn = $("btnGenHooks");
   btn.disabled = true;
   setStatus("Membuat hook dengan AI…");
@@ -155,7 +122,7 @@ $("btnGenHooks").addEventListener("click", async () => {
     const res = await fetch("/api/hooks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ai, story }),
+      body: JSON.stringify({ story }),
     });
     if (!res.ok) throw new Error("server: HTTP " + res.status);
     const data = await res.json();
@@ -184,14 +151,12 @@ $("btnRender").addEventListener("click", async () => {
 
   const top = linesOf("topLines");
   const bot = linesOf("botLines");
-  const mode = aiMode();
-  const story = $("story").value.trim();
 
-  if (mode === "manual" && (!top.length || !bot.length)) {
-    return setStatus("Isi teks hook atas & bawah, atau aktifkan mode AI.", "error");
-  }
-  if (mode === "ai" && !top.length && !bot.length && !story) {
-    return setStatus("Mode AI: isi deskripsi cerita, atau isi hook manual.", "error");
+  if (!top.length || !bot.length) {
+    return setStatus(
+      "Isi teks hook atas & bawah — ketik manual, atau centang AI lalu klik \u201cBuatkan hook\u201d.",
+      "error"
+    );
   }
 
   const payload = {
@@ -199,7 +164,6 @@ $("btnRender").addEventListener("click", async () => {
     top_lines: top,
     bot_lines: bot,
     audio: state.audio ? { name: state.audio.name, data_url: state.audio.dataUrl } : null,
-    ai: mode === "ai" ? Object.assign(collectAiConfig(), { story }) : { mode: "manual" },
   };
 
   const btn = $("btnRender");
