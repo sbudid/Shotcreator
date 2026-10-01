@@ -59,6 +59,8 @@ textarea:focus, input:focus, select:focus {
 }
 .radios label { font-weight: 400; margin: 8px 0; display: flex; gap: 8px; align-items: center; }
 .radios input { width: 18px; height: 18px; accent-color: var(--accent); }
+.checkline { font-weight: 400; margin: 8px 0; display: flex; gap: 8px; align-items: center; cursor: pointer; }
+.checkline input { width: 18px; height: 18px; accent-color: var(--accent); }
 .hidden { display: none !important; }
 
 .filebtn {
