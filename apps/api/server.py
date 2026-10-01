@@ -357,6 +357,19 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send_error_json("Job tidak ditemukan.", 404)
             return self._send_json(job)
 
+        # Vision hooks: cek hasil dari antrean money
+        m = re.fullmatch(r"/api/hooks-vision/([A-Za-z0-9_-]+)", path)
+        if m:
+            job_id = m.group(1)
+            done_path = os.path.join(DATA_DIR, "vision_done", job_id + ".json")
+            if os.path.isfile(done_path):
+                with open(done_path) as f:
+                    return self._send_json(json.load(f))
+            pending_path = os.path.join(DATA_DIR, "vision_pending", job_id, "pending.json")
+            if os.path.isfile(pending_path):
+                return self._send_json({"job_id": job_id, "status": "processing"})
+            return self._send_error_json("Job tidak ditemukan.", 404)
+
         m = re.fullmatch(r"/videos/([A-Za-z0-9_-]+\.mp4)", path)
         if m:
             fpath = os.path.join(VIDEOS_DIR, m.group(1))
@@ -405,6 +418,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path == "/api/hooks":
                 return self._handle_hooks()
+            if path == "/api/hooks-vision":
+                return self._handle_hooks_vision()
             if path == "/api/jobs":
                 return self._handle_jobs()
             return self._send_error_json("Tidak ditemukan.", 404)
@@ -430,6 +445,41 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_error_json(
                 "Gagal menghubungi AI. Cek konfigurasi AI di server.", 502)
         return self._send_json({"top_lines": top, "bot_lines": bot})
+
+    def _handle_hooks_vision(self):
+        """Terima screenshot, masukkan ke antrean untuk diproses money (AI vision).
+        Respons: {job_id, status: 'processing'}. Poll GET /api/hooks-vision/:id."""
+        import uuid
+        body = self._read_json()
+        images = body.get("images")
+        if not images or not isinstance(images, list):
+            return self._send_error_json(
+                "Upload dulu minimal 1 screenshot.", 400)
+        job_id = "v" + uuid.uuid4().hex[:12]
+        pending_dir = os.path.join(DATA_DIR, "vision_pending", job_id)
+        os.makedirs(pending_dir, exist_ok=True)
+        # Simpan gambar sebagai file
+        for i, img in enumerate(images[:5]):  # maks 5 gambar
+            data_url = img.get("data_url", "")
+            if "," in data_url:
+                _, b64 = data_url.split(",", 1)
+            else:
+                b64 = data_url
+            try:
+                raw = base64.b64decode(b64)
+            except Exception:
+                continue
+            ext = ".png"
+            if data_url.startswith("data:image/jpeg"):
+                ext = ".jpg"
+            elif data_url.startswith("data:image/webp"):
+                ext = ".webp"
+            with open(os.path.join(pending_dir, f"img_{i:02d}{ext}"), "wb") as f:
+                f.write(raw)
+        # Tandai sebagai pending
+        with open(os.path.join(pending_dir, "pending.json"), "w") as f:
+            json.dump({"job_id": job_id, "created": time.time()}, f)
+        return self._send_json({"job_id": job_id, "status": "processing"}, 202)
 
     def _handle_jobs(self):
         body = self._read_json()
