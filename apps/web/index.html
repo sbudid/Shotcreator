@@ -40,23 +40,8 @@
   <!-- 3. AI -->
   <section class="card">
     <h2>3. Bantuan AI <span class="badge">opsional</span></h2>
-    <div class="radios">
-      <label><input type="radio" name="aiMode" value="manual" checked> Manual — aku isi teks sendiri</label>
-      <label><input type="radio" name="aiMode" value="ai"> Pakai AI — buatkan hook dari deskripsi cerita</label>
-    </div>
+    <label class="checkline"><input type="checkbox" id="aiToggle"> Buatkan hook otomatis pakai AI</label>
     <div id="aiConfig" class="hidden">
-      <label for="provider">Provider</label>
-      <select id="provider">
-        <option value="9router">9router (OpenAI-compatible)</option>
-        <option value="openai">OpenAI</option>
-        <option value="custom">Custom OpenAI-compatible</option>
-      </select>
-      <label for="baseUrl">Base URL</label>
-      <input type="url" id="baseUrl" placeholder="https://api.openai.com/v1">
-      <label for="model">Model</label>
-      <input type="text" id="model" placeholder="gpt-4o-mini">
-      <label for="apiKey">API key <span class="hint-inline">(opsional — kalau backend belum diset)</span></label>
-      <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off">
       <label for="story">Deskripsi cerita</label>
       <textarea id="story" rows="4" placeholder="Ceritakan isi screenshot-nya, misal: kisah ibu yang doanya menyelamatkanku saat kecelakaan..."></textarea>
       <button id="btnGenHooks" class="btn secondary" type="button">✨ Buatkan hook</button>
