@@ -370,6 +370,19 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send_json({"job_id": job_id, "status": "processing"})
             return self._send_error_json("Job tidak ditemukan.", 404)
 
+        # Money hooks (text): cek hasil dari antrean money
+        m = re.fullmatch(r"/api/hooks-money/([A-Za-z0-9_-]+)", path)
+        if m:
+            job_id = m.group(1)
+            done_path = os.path.join(DATA_DIR, "money_done", job_id + ".json")
+            if os.path.isfile(done_path):
+                with open(done_path) as f:
+                    return self._send_json(json.load(f))
+            pending_path = os.path.join(DATA_DIR, "money_pending", job_id, "pending.json")
+            if os.path.isfile(pending_path):
+                return self._send_json({"job_id": job_id, "status": "processing"})
+            return self._send_error_json("Job tidak ditemukan.", 404)
+
         m = re.fullmatch(r"/videos/([A-Za-z0-9_-]+\.mp4)", path)
         if m:
             fpath = os.path.join(VIDEOS_DIR, m.group(1))
@@ -420,6 +433,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._handle_hooks()
             if path == "/api/hooks-vision":
                 return self._handle_hooks_vision()
+            if path == "/api/hooks-money":
+                return self._handle_hooks_money()
             if path == "/api/jobs":
                 return self._handle_jobs()
             return self._send_error_json("Tidak ditemukan.", 404)
@@ -479,6 +494,22 @@ class Handler(BaseHTTPRequestHandler):
         # Tandai sebagai pending
         with open(os.path.join(pending_dir, "pending.json"), "w") as f:
             json.dump({"job_id": job_id, "created": time.time()}, f)
+        return self._send_json({"job_id": job_id, "status": "processing"}, 202)
+
+    def _handle_hooks_money(self):
+        """Terima deskripsi teks, masukkan ke antrean untuk diproses money (AI text).
+        Respons: {job_id, status: 'processing'}. Poll GET /api/hooks-money/:id."""
+        import uuid
+        body = self._read_json()
+        story = (body.get("story") or "").strip()
+        if not story:
+            return self._send_error_json("Isi dulu deskripsi ceritanya.", 400)
+        job_id = "m" + uuid.uuid4().hex[:12]
+        pending_dir = os.path.join(DATA_DIR, "money_pending", job_id)
+        os.makedirs(pending_dir, exist_ok=True)
+        with open(os.path.join(pending_dir, "pending.json"), "w") as f:
+            json.dump({"job_id": job_id, "story": story,
+                       "created": time.time()}, f)
         return self._send_json({"job_id": job_id, "status": "processing"}, 202)
 
     def _handle_jobs(self):
