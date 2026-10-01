@@ -2,10 +2,12 @@
 """Shotcreator API server (stdlib only).
 
 Endpoint:
-  POST /api/hooks       {ai:{mode,provider,base_url,model,api_key?}, story}
+  POST /api/hooks       {story}
                         -> {top_lines[], bot_lines[]}
+                        (konfigurasi AI dibaca dari env vars server,
+                         bukan dari request)
   POST /api/jobs        {images:[{name, data_url}], top_lines[], bot_lines[],
-                         audio:{name, data_url}|null, ai:{mode, ...}, pan_secs?}
+                         audio:{name, data_url}|null, pan_secs?}
                         -> {job_id}
   GET  /api/jobs/:id    -> {status: queued|rendering|done|error,
                             progress?, video_url?, top_lines?, bot_lines?, error?}
@@ -17,8 +19,9 @@ Jalankan:
 
 Env:
   PORT                  default 8000
-  SHOTCREATOR_AI_BASE_URL / SHOTCREATOR_AI_API_KEY / SHOTCREATOR_AI_MODEL
-                        default AI provider (dipakai kalau request tidak kirim api_key)
+  SHOTCREATOR_AI_BASE_URL   base URL AI OpenAI-compatible (wajib untuk /api/hooks)
+  SHOTCREATOR_AI_API_KEY    API key AI (kalau provider membutuhkannya)
+  SHOTCREATOR_AI_MODEL      model AI
   SHOTCREATOR_FONT      path font bold untuk hook (default: DejaVuSans-Bold)
   SHOTCREATOR_DATA      direktori data (default ./data)
 
@@ -177,32 +180,27 @@ def decode_data_url(data_url: str, allowed: dict, label: str):
     return ext, raw
 
 
-def make_ai_provider(ai: dict):
-    """Bangun provider dari config request. Raise ValueError (pesan ID)."""
-    from shotcreator_ai import ManualProvider, OpenAICompatProvider
+def make_ai_provider():
+    """Bangun provider AI dari env vars server. Raise ValueError (pesan ID)."""
+    from shotcreator_ai import OpenAICompatProvider
 
-    ai = ai or {}
-    mode = (ai.get("mode") or "manual").lower()
-    if mode == "manual":
-        return ManualProvider(
-            top_lines=ai.get("top_lines"), bot_lines=ai.get("bot_lines"))
-    # preset frontend: 9router | openai | custom -> semuanya openai-compatible
-    base_url = (ai.get("base_url") or "").strip()
+    base_url = (os.environ.get("SHOTCREATOR_AI_BASE_URL") or "").strip()
+    model = (os.environ.get("SHOTCREATOR_AI_MODEL") or "").strip()
+    cred = (os.environ.get("SHOTCREATOR_AI_API_KEY") or "").strip()
     if not base_url:
-        base_url = os.environ.get("SHOTCREATOR_AI_BASE_URL", "")
-    model = (ai.get("model") or "").strip() or os.environ.get(
-        "SHOTCREATOR_AI_MODEL", "")
-    cred = (ai.get("api_key") or "").strip() or os.environ.get(
-        "SHOTCREATOR_AI_API_KEY", "")
-    if not base_url:
-        raise ValueError("Isi Base URL provider AI-nya dulu.")
+        raise ValueError(
+            "AI belum dikonfigurasi di server. "
+            "Set SHOTCREATOR_AI_BASE_URL di server "
+            "(dan SHOTCREATOR_AI_API_KEY / SHOTCREATOR_AI_MODEL bila perlu), "
+            "lalu coba lagi.")
     return OpenAICompatProvider(base_url or None, cred or None,
                                 model or None)
 
 
 # ---------------------------------------------------------------- worker
 def render_job(jid: str, payload: dict):
-    """Background thread: (opsional) generate hook -> render -> mux audio."""
+    """Background thread: render -> mux audio. Hook sudah final dari client
+    (manual atau hasil /api/hooks)."""
     job_dir = os.path.join(JOBS_DIR, jid)
     os.makedirs(job_dir, exist_ok=True)
     t0 = time.time()
@@ -220,15 +218,7 @@ def render_job(jid: str, payload: dict):
         bot_lines = [str(x).strip() for x in (payload.get("bot_lines") or [])
                      if str(x).strip()]
 
-        ai = payload.get("ai") or {}
-        story = (ai.get("story") or "").strip()
-        if ai.get("mode") == "ai" and not top_lines and not bot_lines:
-            if not story:
-                raise ValueError(
-                    "Mode AI: isi deskripsi cerita, atau isi hook manual.")
-            provider = make_ai_provider(ai)
-            top_lines, bot_lines = provider.generate_hooks(story)
-            JOBS.update(jid, top_lines=top_lines, bot_lines=bot_lines)
+        # field ai.* dari client diabaikan — hook sudah final di payload
         if not top_lines or not bot_lines:
             raise ValueError("Isi teks hook atas & bawah dulu.")
 
@@ -430,19 +420,15 @@ class Handler(BaseHTTPRequestHandler):
         story = (body.get("story") or "").strip()
         if not story:
             return self._send_error_json("Isi dulu deskripsi ceritanya.", 400)
-        ai = body.get("ai") or {}
-        if (ai.get("mode") or "manual").lower() == "manual":
-            return self._send_error_json(
-                "Mode manual: isi hook sendiri, tanpa AI.", 400)
         try:
-            provider = make_ai_provider(ai)
+            provider = make_ai_provider()
             top, bot = provider.generate_hooks(story)
         except ValueError as e:
             return self._send_error_json(str(e), 400)
         except Exception:  # noqa: BLE001
             traceback.print_exc()
             return self._send_error_json(
-                "Gagal menghubungi AI. Cek base URL, model, dan koneksi.", 502)
+                "Gagal menghubungi AI. Cek konfigurasi AI di server.", 502)
         return self._send_json({"top_lines": top, "bot_lines": bot})
 
     def _handle_jobs(self):
