@@ -111,12 +111,58 @@ $("aiToggle").addEventListener("change", () => {
   $("aiConfig").classList.toggle("hidden", !aiEnabled());
 });
 
+/* ---------- AI mode radio ---------- */
+document.querySelectorAll('input[name="aiMode"]').forEach((r) => {
+  r.addEventListener("change", () => {
+    const mode = document.querySelector('input[name="aiMode"]:checked').value;
+    $("visionDesc").classList.toggle("hidden", mode !== "vision");
+    $("textDesc").classList.toggle("hidden", mode !== "text");
+  });
+});
+
+function aiMode() {
+  const el = document.querySelector('input[name="aiMode"]:checked');
+  return el ? el.value : "vision";
+}
+
 /* ---------- generate hooks ---------- */
 $("btnGenHooks").addEventListener("click", async () => {
-  const story = $("story").value.trim();
-  if (!story) return setStatus("Isi dulu deskripsi ceritanya.", "error");
   const btn = $("btnGenHooks");
   btn.disabled = true;
+  const mode = aiMode();
+
+  if (mode === "vision") {
+    // Vision: kirim screenshot, money yang lihat dan buatkan hook
+    if (!state.images.length) {
+      btn.disabled = false;
+      return setStatus("Upload dulu minimal 1 screenshot di bagian 1.", "error");
+    }
+    setStatus("AI sedang melihat screenshot… (sekitar 1 menit)");
+    try {
+      const res = await fetch("/api/hooks-vision", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          images: state.images.map((x) => ({ name: x.name, data_url: x.dataUrl })),
+        }),
+      });
+      if (!res.ok) throw new Error("server: HTTP " + res.status);
+      const data = await res.json();
+      if (data.error || !data.job_id) throw new Error(data.error || "job_id tidak ada");
+      await pollVisionHooks(data.job_id);
+    } catch (err) {
+      setStatus("Gagal membuat hook: " + err.message, "error");
+      btn.disabled = false;
+    }
+    return;
+  }
+
+  // Text mode: dari deskripsi cerita via 9router
+  const story = $("story").value.trim();
+  if (!story) {
+    btn.disabled = false;
+    return setStatus("Isi dulu deskripsi ceritanya.", "error");
+  }
   setStatus("Membuat hook dengan AI…");
   try {
     const res = await fetch("/api/hooks", {
@@ -136,6 +182,31 @@ $("btnGenHooks").addEventListener("click", async () => {
     btn.disabled = false;
   }
 });
+
+async function pollVisionHooks(jobId) {
+  const btn = $("btnGenHooks");
+  for (let i = 0; i < 40; i++) {  // maks ~2 menit
+    await new Promise((r) => setTimeout(r, 3000));
+    try {
+      const res = await fetch("/api/hooks-vision/" + encodeURIComponent(jobId));
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data.status === "done") {
+        $("topLines").value = (data.top_lines || []).join("\n");
+        $("botLines").value = (data.bot_lines || []).join("\n");
+        setStatus("Hook berhasil dibuat dari screenshot. Cek & edit dulu kalau perlu.", "ok");
+        btn.disabled = false;
+        return;
+      }
+      if (data.status === "error") throw new Error(data.error || "gagal");
+      setStatus(`AI sedang melihat screenshot… (${i * 3} detik)`);
+    } catch (err) {
+      if (err.message && !err.message.includes("HTTP")) throw err;
+    }
+  }
+  setStatus("AI-nya kelamaan. Coba lagi atau pakai mode teks.", "error");
+  btn.disabled = false;
+}
 
 /* ---------- render job ---------- */
 const STATUS_LABEL = {
