@@ -39,9 +39,9 @@ class Template:
     dwell_top: float = 2.0
     dwell_bot: float = 2.0
     pan_frac: float = 0.75
-    # encode
+    # encode (bisa dioverride via env: SHOTCREATOR_PRESET, SHOTCREATOR_CRF)
     crf: int = 20
-    preset: str = "medium"
+    preset: str = "veryfast"
     video_codec: str = "libx264"
     pix_fmt: str = "yuv420p"
 
