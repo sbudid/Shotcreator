@@ -333,84 +333,42 @@ $("btnRender").addEventListener("click", async () => {
     );
   }
 
-  const payload = {
-    images: state.images.map((x) => ({ name: x.name, data_url: x.dataUrl })),
-    top_lines: top,
-    bot_lines: bot,
-    audio: state.audio ? { name: state.audio.name, data_url: state.audio.dataUrl } : null,
-  };
-
   const btn = $("btnRender");
   btn.disabled = true;
   $("jobCard").classList.remove("hidden");
   $("preview").classList.add("hidden");
   $("btnDownload").classList.add("hidden");
-  setJobStatus("queued", 0);
-  setStatus("Mengirim job render…");
+  setJobStatus("rendering", 0);
+  setStatus("🎞️ Merender di perangkatmu… jangan tutup tab ini.", "");
 
+  // Render 100% di browser — tanpa server.
   try {
-    const res = await fetch("/api/jobs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+    const { blob, ext } = await crRender({
+      images: state.images.map((x) => x.dataUrl),
+      topLines: top,
+      botLines: bot,
+      audioDataUrl: state.audio ? state.audio.dataUrl : null,
+      onProgress: (p) => setJobStatus("rendering", Math.round(p * 100)),
     });
-    if (!res.ok) throw new Error("server: HTTP " + res.status);
-    const data = await res.json();
-    if (data.error || !data.job_id) throw new Error(data.error || "job_id tidak ada");
-    setStatus("Job terkirim. Merender…", "ok");
-    startPolling(data.job_id);
+    const url = URL.createObjectURL(blob);
+    const fname = "shotcreator." + ext;
+    $("preview").src = url;
+    $("preview").classList.remove("hidden");
+    const dl = $("btnDownload");
+    dl.href = url;
+    dl.download = fname;
+    dl.classList.remove("hidden");
+    setJobStatus("done", 100);
+    setStatus(`Video selesai! Format ${ext.toUpperCase()} — putar preview atau download.`, "ok");
+    $("jobCard").scrollIntoView({ behavior: "smooth" });
   } catch (err) {
-    setStatus("Gagal mengirim job: " + err.message, "error");
-    btn.disabled = false;
+    setJobStatus("error", 0);
+    setStatus("Render gagal: " + err.message, "error");
   }
+  btn.disabled = false;
 });
 
 function setJobStatus(status, progress) {
   $("jobLabel").textContent = STATUS_LABEL[status] || status;
   $("progressBar").style.width = Math.max(0, Math.min(100, progress || 0)) + "%";
 }
-
-function startPolling(jobId) {
-  stopPolling();
-  const tick = async () => {
-    try {
-      const res = await fetch("/api/jobs/" + encodeURIComponent(jobId));
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      const job = await res.json();
-      setJobStatus(job.status, job.progress);
-      if (job.status === "done") {
-        stopPolling();
-        $("btnRender").disabled = false;
-        if (job.video_url) {
-          $("preview").src = job.video_url;
-          $("preview").classList.remove("hidden");
-          const dl = $("btnDownload");
-          dl.href = job.video_url;
-          dl.classList.remove("hidden");
-          setStatus("Video selesai! Putar preview atau download.", "ok");
-        } else {
-          setStatus("Job selesai tapi video_url kosong.", "error");
-        }
-        $("jobCard").scrollIntoView({ behavior: "smooth" });
-      } else if (job.status === "error") {
-        stopPolling();
-        $("btnRender").disabled = false;
-        setStatus("Render gagal: " + (job.error || "tidak diketahui"), "error");
-      }
-      // queued/rendering -> terus polling
-    } catch (err) {
-      // error jaringan sesaat: biarkan polling jalan, tampilkan sekali
-      setStatus("Menunggu server… (" + err.message + ")");
-    }
-  };
-  tick();
-  state.pollTimer = setInterval(tick, 2500);
-}
-
-function stopPolling() {
-  if (state.pollTimer) {
-    clearInterval(state.pollTimer);
-    state.pollTimer = null;
-  }
-}
-window.addEventListener("beforeunload", stopPolling);
