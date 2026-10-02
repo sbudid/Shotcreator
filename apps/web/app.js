@@ -20,6 +20,30 @@ const state = {
   pollTimer: null,
 };
 
+/* ---------- cek backend ---------- */
+// Kalau /api/health tidak terjangkau (mis. dibuka dari Pages publik tanpa
+// backend), sembunyikan opsi AI agar user tidak dapat error 405 yang membingungkan.
+(async function probeBackend() {
+  try {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 5000);
+    const res = await fetch("/api/health", { signal: ctl.signal });
+    clearTimeout(t);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+  } catch (e) {
+    const card = $("aiCard");
+    if (card) {
+      // sembunyikan kontrol AI, tampilkan penjelasan
+      const cfg = $("aiConfig");
+      if (cfg) cfg.classList.add("hidden");
+      const toggle = $("aiToggle");
+      if (toggle) { toggle.checked = false; toggle.disabled = true; }
+      const hint = $("aiOfflineHint");
+      if (hint) hint.hidden = false;
+    }
+  }
+})();
+
 /* ---------- helpers ---------- */
 function setStatus(msg, kind) {
   const el = $("status");
