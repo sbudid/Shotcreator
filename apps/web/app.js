@@ -152,62 +152,7 @@ $("btnGenHooks").addEventListener("click", async () => {
   }
 });
 
-/* ---------- capture layar otomatis -> vision ---------- */
-$("btnCapture").addEventListener("click", async () => {
-  const btn = $("btnCapture");
-  btn.disabled = true;
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-    setStatus("Browser tidak mendukung capture layar. Pakai upload manual di bagian 1.", "error");
-    btn.disabled = false;
-    return;
-  }
-  let stream = null;
-  try {
-    setStatus("Pilih jendela/tab yang mau di-capture…", "");
-    stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-    const video = document.createElement("video");
-    video.srcObject = stream;
-    await video.play();
-    await new Promise((r) => setTimeout(r, 500)); // tunggu frame stabil
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext("2d").drawImage(video, 0, 0);
-    const dataUrl = canvas.toDataURL("image/png");
-    stream.getTracks().forEach((t) => t.stop());
-    stream = null;
-
-    setStatus("AI sedang melihat hasil capture… (sekitar 1 menit)", "");
-    const res = await fetch("/api/hooks-vision", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ images: [{ name: "capture.png", data_url: dataUrl }] }),
-    });
-    if (!res.ok) throw new Error("server: HTTP " + res.status);
-    const data = await res.json();
-    if (data.top_lines && data.top_lines.length) {
-      $("topLines").value = (data.top_lines || []).join("\n");
-      $("botLines").value = (data.bot_lines || []).join("\n");
-      setStatus("Hook berhasil dibuat dari hasil capture. Cek & edit dulu kalau perlu.", "ok");
-      $("btnGenHooks").disabled = false;
-    } else {
-      if (data.error || !data.job_id) throw new Error(data.error || "job_id tidak ada");
-      // pakai polling yang sama dengan vision manual
-      $("btnGenHooks").disabled = true;
-      await pollVisionHooks(data.job_id);
-      $("btnGenHooks").disabled = false;
-    }
-  } catch (err) {
-    if (stream) stream.getTracks().forEach((t) => t.stop());
-    if (err.name === "NotAllowedError") {
-      setStatus("Capture dibatalkan.", "error");
-    } else {
-      setStatus("Gagal capture: " + err.message, "error");
-    }
-  }
-  btn.disabled = false;
-});
-
+/* ---------- polling vision ---------- */
 async function pollVisionHooks(jobId) {
   const btn = $("btnGenHooks");
   for (let i = 0; i < 40; i++) {  // maks ~2 menit
