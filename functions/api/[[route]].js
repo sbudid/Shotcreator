@@ -80,7 +80,7 @@ function parseHooks(text) {
   return { top_lines: top, bot_lines: bottom };
 }
 
-async function chat(model, messages, apiKey, dbgRaw) {
+async function chat(model, messages, apiKey, maxTokens) {
   const res = await fetch(API_BASE + "/chat/completions", {
     method: "POST",
     headers: {
@@ -88,19 +88,16 @@ async function chat(model, messages, apiKey, dbgRaw) {
       Authorization: "Bearer " + apiKey,
       "User-Agent": UA,
     },
-    body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: 1500, response_format: { type: "json_object" } }),
+    body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: maxTokens || 1500, response_format: { type: "json_object" } }),
   });
   if (!res.ok) {
     const detail = (await res.text()).slice(0, 200);
     throw new Error("AI HTTP " + res.status + ": " + detail);
   }
   const data = await res.json();
-  if (dbgRaw) {
-    return json({ raw: JSON.stringify(data).slice(0, 3000) });
-  }
   const content = data && data.choices && data.choices[0] &&
     data.choices[0].message && data.choices[0].message.content;
-  if (!content) throw new Error("Respons AI tak terduga");
+  if (!content) throw new Error("AI tidak memberikan jawaban (coba lagi)");
   return content;
 }
 
@@ -190,9 +187,18 @@ export async function onRequest({ request, env }) {
         if (!n) {
           return json({ error: "Tidak ada gambar valid untuk dianalisis." }, 400);
         }
-        const text = await chat(VISION_MODEL, [{ role: "user", content }], apiKey,
-          url.searchParams.get("dbg") === "raw");
-        if (url.searchParams.get("dbg") === "raw") return text;
+        // DeepSeek V4.1 adalah reasoning model: prompt harus tegas SATU hook
+        // untuk multi-gambar (kalau ambigu dia mikir kepanjangan sampai jawaban kosong),
+        // dan max_tokens lebih besar agar reasoning + jawaban muat.
+        const text = await chat(
+          VISION_MODEL,
+          [{ role: "user", content: [
+            { type: "text", text: SYSTEM + "\n\nBuatkan SATU hook terbaik (satu JSON saja) untuk gambar-gambar ini." },
+            ...content.slice(1),
+          ] }],
+          apiKey,
+          2500
+        );
         return json({ job_id: rid("v"), status: "done", ...parseHooks(text) });
       }
     }
