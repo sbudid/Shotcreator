@@ -67,7 +67,7 @@ async function chat(model, messages, apiKey) {
       Authorization: "Bearer " + apiKey,
       "User-Agent": UA,
     },
-    body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: 1500, response_format: { type: "json_object" } }),
+    body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: 1500 }),
   });
   if (!res.ok) {
     const detail = (await res.text()).slice(0, 200);
