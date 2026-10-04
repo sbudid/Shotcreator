@@ -77,7 +77,8 @@ async function chat(model, messages, apiKey) {
   const content = data && data.choices && data.choices[0] &&
     data.choices[0].message && data.choices[0].message.content;
   if (!content) throw new Error("Respons AI tak terduga");
-  return content;
+  // DEBUG SEMENTARA: kembalikan usage juga
+  return { content, usage: data.usage || null };
 }
 
 function rid(prefix) {
@@ -120,24 +121,28 @@ export async function onRequest({ request, env }) {
         const body = await request.json();
         const story = String(body.story || "").trim();
         if (!story) return json({ error: "Isi dulu deskripsi ceritanya." }, 400);
-        const text = await chat(
+        const r = await chat(
           HOOK_MODEL,
           [{ role: "user", content: SYSTEM + "\n\nDeskripsi:\n" + story }],
           apiKey
         );
-        return json(parseHooks(text));
+        const out = parseHooks(r.content);
+        if (url.searchParams.get("debug") === "1") out._usage = r.usage;
+        return json(out);
       }
 
       if (path === "/api/hooks-money" && request.method === "POST") {
         const body = await request.json();
         const story = String(body.story || "").trim();
         if (!story) return json({ error: "Isi dulu deskripsi ceritanya." }, 400);
-        const text = await chat(
+        const r = await chat(
           HOOK_MODEL,
           [{ role: "user", content: SYSTEM + "\n\nDeskripsi:\n" + story }],
           apiKey
         );
-        return json({ job_id: rid("m"), status: "done", ...parseHooks(text) });
+        const out = { job_id: rid("m"), status: "done", ...parseHooks(r.content) };
+        if (url.searchParams.get("debug") === "1") out._usage = r.usage;
+        return json(out);
       }
 
       if (path === "/api/hooks-vision" && request.method === "POST") {
@@ -160,8 +165,10 @@ export async function onRequest({ request, env }) {
         if (!n) {
           return json({ error: "Tidak ada gambar valid untuk dianalisis." }, 400);
         }
-        const text = await chat(VISION_MODEL, [{ role: "user", content }], apiKey);
-        return json({ job_id: rid("v"), status: "done", ...parseHooks(text) });
+        const r = await chat(VISION_MODEL, [{ role: "user", content }], apiKey);
+        const out = { job_id: rid("v"), status: "done", ...parseHooks(r.content) };
+        if (url.searchParams.get("debug") === "1") out._usage = r.usage;
+        return json(out);
       }
     }
 
