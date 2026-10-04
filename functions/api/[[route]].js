@@ -166,7 +166,7 @@ export async function onRequest({ request, env }) {
         }
         const r = await chat(VISION_MODEL, [{ role: "user", content }], apiKey);
         if (url.searchParams.get("debug") === "1") {
-          return json({ _usage: r.usage, _raw: String(r.content).slice(0, 600) });
+          return json({ _usage: r.usage, _raw: String(r.content).slice(0, 3000) });
         }
         const out2 = { job_id: rid("v"), status: "done", ...parseHooks(r.content) };
         return json(out2);
