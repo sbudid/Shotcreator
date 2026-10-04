@@ -11,7 +11,7 @@
 
 const API_BASE = "https://api.commandcode.ai/provider/v1";
 const HOOK_MODEL = "deepseek/deepseek-v4-flash"; // hook teks
-const VISION_MODEL = "google/gemini-3.8-flash"; // hook vision
+const VISION_MODEL = "deepseek/deepseek-v4.1-flash"; // hook vision
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
