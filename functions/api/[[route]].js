@@ -11,7 +11,7 @@
 
 const API_BASE = "https://api.commandcode.ai/provider/v1";
 const HOOK_MODEL = "deepseek/deepseek-v4-flash"; // hook teks
-const VISION_MODEL = "deepseek/deepseek-v4.1-flash"; // hook vision
+const VISION_MODEL = "google/gemini-3.8-flash"; // hook vision (deepseek-v4.1-flash tidak stabil: reasoning model sering balas content kosong untuk multi-gambar)
 
 // Hash SHA-256 dari password buyer (ganti hash ini tiap rotasi password).
 // Plaintext password TIDAK disimpan di repo — hanya hash.
