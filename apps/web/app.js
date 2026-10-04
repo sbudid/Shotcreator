@@ -177,7 +177,11 @@ $("btnGenHooks").addEventListener("click", async () => {
       showLock(true);
       return setStatus("Password salah / sesi berakhir. Masukkan password buyer.", "error");
     }
-    if (!res.ok) throw new Error("server: HTTP " + res.status);
+    if (!res.ok) {
+      let detail = "HTTP " + res.status;
+      try { const ed = await res.json(); if (ed && ed.error) detail += " — " + ed.error; } catch (_) {}
+      throw new Error("server: " + detail);
+    }
     const data = await res.json();
     if (data.top_lines && data.top_lines.length) {
       $("topLines").value = (data.top_lines || []).join("\n");
