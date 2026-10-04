@@ -12,6 +12,27 @@
 const API_BASE = "https://api.commandcode.ai/provider/v1";
 const HOOK_MODEL = "deepseek/deepseek-v4-flash"; // hook teks
 const VISION_MODEL = "deepseek/deepseek-v4.1-flash"; // hook vision
+
+// Hash SHA-256 dari password buyer (ganti hash ini tiap rotasi password).
+// Plaintext password TIDAK disimpan di repo — hanya hash.
+const APP_PASSWORD_SHA256 =
+  "ef9435cddccc23ec3d7e6db8cafbc155960b363fff0693d60a08ca001b9e1cf6";
+
+async function sha256Hex(s) {
+  const buf = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(s)
+  );
+  return [...new Uint8Array(buf)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function checkPassword(request) {
+  const pw = (request.headers.get("x-app-password") || "").trim();
+  if (!pw) return false;
+  return (await sha256Hex(pw)) === APP_PASSWORD_SHA256;
+}
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
@@ -97,7 +118,7 @@ export async function onRequest({ request, env }) {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Headers": "Content-Type, X-App-Password",
       },
     });
   }
@@ -108,6 +129,12 @@ export async function onRequest({ request, env }) {
     }
 
     if (path.startsWith("/api/hooks")) {
+      if (!(await checkPassword(request))) {
+        return json(
+          { error: "Akses ditolak. Masukkan password buyer yang valid." },
+          401
+        );
+      }
       const apiKey = (env.COMMANDCODE_API_KEY || "").trim();
       if (!apiKey) {
         return json(

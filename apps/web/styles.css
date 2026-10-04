@@ -137,3 +137,29 @@ textarea:focus, input:focus, select:focus {
 #btnDownload { text-align: center; text-decoration: none; margin-top: 12px; }
 
 .foot { text-align: center; color: var(--muted); font-size: 12px; padding: 18px 0 30px; }
+
+/* ---------- lock screen ---------- */
+.lock {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(5, 8, 20, .92);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.lock-card {
+  background: var(--navy2, #0e1430);
+  border: 1px solid var(--line, #2a3560);
+  border-radius: 16px; padding: 32px 28px;
+  max-width: 340px; width: 100%; text-align: center;
+}
+.lock-emoji { font-size: 44px; margin-bottom: 8px; }
+.lock-card h2 { margin: 0 0 8px; }
+.lock-card p { color: var(--muted, #8b93b8); font-size: 14px; }
+.lock-card input {
+  width: 100%; box-sizing: border-box;
+  padding: 12px; margin: 12px 0; border-radius: 10px;
+  border: 1px solid var(--line, #2a3560);
+  background: #0a0f24; color: #fff; font-size: 16px; text-align: center;
+}
+.lock-card .btn { width: 100%; }
+.lock-err { color: #ff6b6b !important; }
+.lock-hint { font-size: 12px !important; margin-top: 14px; }
