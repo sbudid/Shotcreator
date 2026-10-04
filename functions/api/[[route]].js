@@ -67,7 +67,7 @@ async function chat(model, messages, apiKey) {
       Authorization: "Bearer " + apiKey,
       "User-Agent": UA,
     },
-    body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: 500, response_format: { type: "json_object" } }),
+    body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: 1500, response_format: { type: "json_object" } }),
   });
   if (!res.ok) {
     const detail = (await res.text()).slice(0, 200);
@@ -166,7 +166,7 @@ export async function onRequest({ request, env }) {
         }
         const r = await chat(VISION_MODEL, [{ role: "user", content }], apiKey);
         if (url.searchParams.get("debug") === "1") {
-          const uu = r.usage || {}; return json({ _usage: uu, _raw: String(r.content).slice(0, 800) });
+          const uu = r.usage || {}; return json({ _usage: uu, _raw: String(r.content).slice(0, 2500) });
         }
         const out2 = { job_id: rid("v"), status: "done", ...parseHooks(r.content) };
         return json(out2);
