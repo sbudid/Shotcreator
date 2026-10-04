@@ -18,7 +18,7 @@ const UA =
 
 const SYSTEM =
   "Kamu penulis hook video vertikal TikTok/Reels berbahasa Indonesia. " +
-  "Balas HANYA dengan JSON seperti ini: " +
+  "Wajib balas HANYA dengan JSON mentah tanpa penjelasan, tanpa pembuka, tanpa penutup: " +
   '{"top": ["BARIS ATAS 1", "BARIS ATAS 2"], "bottom": ["BARIS BAWAH"]}. ' +
   "Huruf kapital semua, tiap baris maksimal 28 karakter, 1-2 baris per " +
   "bagian, gaya bikin penasaran dan emosional. " +
@@ -67,7 +67,7 @@ async function chat(model, messages, apiKey) {
       Authorization: "Bearer " + apiKey,
       "User-Agent": UA,
     },
-    body: JSON.stringify({ model, messages, temperature: 0.7 }),
+    body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: 500 }),
   });
   if (!res.ok) {
     const detail = (await res.text()).slice(0, 200);
@@ -77,7 +77,7 @@ async function chat(model, messages, apiKey) {
   const content = data && data.choices && data.choices[0] &&
     data.choices[0].message && data.choices[0].message.content;
   if (!content) throw new Error("Respons AI tak terduga");
-  return content;
+  return { content, usage: data.usage || null }; // DEBUG SEMENTARA
 }
 
 function rid(prefix) {
@@ -120,24 +120,28 @@ export async function onRequest({ request, env }) {
         const body = await request.json();
         const story = String(body.story || "").trim();
         if (!story) return json({ error: "Isi dulu deskripsi ceritanya." }, 400);
-        const text = await chat(
+        const r = await chat(
           HOOK_MODEL,
           [{ role: "user", content: SYSTEM + "\n\nDeskripsi:\n" + story }],
           apiKey
         );
-        return json(parseHooks(text));
+        const out0 = parseHooks(r.content);
+        if (url.searchParams.get("debug") === "1") out0._usage = r.usage;
+        return json(out0);
       }
 
       if (path === "/api/hooks-money" && request.method === "POST") {
         const body = await request.json();
         const story = String(body.story || "").trim();
         if (!story) return json({ error: "Isi dulu deskripsi ceritanya." }, 400);
-        const text = await chat(
+        const r = await chat(
           HOOK_MODEL,
           [{ role: "user", content: SYSTEM + "\n\nDeskripsi:\n" + story }],
           apiKey
         );
-        return json({ job_id: rid("m"), status: "done", ...parseHooks(text) });
+        const out1 = { job_id: rid("m"), status: "done", ...parseHooks(r.content) };
+        if (url.searchParams.get("debug") === "1") out1._usage = r.usage;
+        return json(out1);
       }
 
       if (path === "/api/hooks-vision" && request.method === "POST") {
@@ -160,8 +164,10 @@ export async function onRequest({ request, env }) {
         if (!n) {
           return json({ error: "Tidak ada gambar valid untuk dianalisis." }, 400);
         }
-        const text = await chat(VISION_MODEL, [{ role: "user", content }], apiKey);
-        return json({ job_id: rid("v"), status: "done", ...parseHooks(text) });
+        const r = await chat(VISION_MODEL, [{ role: "user", content }], apiKey);
+        const out2 = { job_id: rid("v"), status: "done", ...parseHooks(r.content) };
+        if (url.searchParams.get("debug") === "1") out2._usage = r.usage;
+        return json(out2);
       }
     }
 
