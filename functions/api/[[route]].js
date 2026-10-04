@@ -16,7 +16,7 @@ const VISION_MODEL = "deepseek/deepseek-v4.1-flash"; // hook vision
 // Hash SHA-256 dari password buyer (ganti hash ini tiap rotasi password).
 // Plaintext password TIDAK disimpan di repo — hanya hash.
 const APP_PASSWORD_SHA256 =
-  "ef9435cddccc23ec3d7e6db8cafbc155960b363fff0693d60a08ca001b9e1cf6";
+  "7aab698cae543774e2c4a3c7c0113ebe0cf7d57bf3970ca165176a83e8479df7";
 
 async function sha256Hex(s) {
   const buf = await crypto.subtle.digest(
