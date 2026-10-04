@@ -193,7 +193,7 @@ export async function onRequest({ request, env }) {
         const text = await chat(
           VISION_MODEL,
           [{ role: "user", content: [
-            { type: "text", text: SYSTEM + "\n\nBuatkan SATU hook terbaik (satu JSON saja) untuk gambar-gambar ini." },
+            { type: "text", text: SYSTEM + "\n\nPENTING: Langsung jawab dengan JSON, JANGAN berpikir panjang atau menimbang-nimbang. Buatkan SATU hook terbaik (satu JSON saja) untuk gambar-gambar ini." },
             ...content.slice(1),
           ] }],
           apiKey,
