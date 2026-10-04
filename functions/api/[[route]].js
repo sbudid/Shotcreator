@@ -67,7 +67,7 @@ async function chat(model, messages, apiKey) {
       Authorization: "Bearer " + apiKey,
       "User-Agent": UA,
     },
-    body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: 500 }),
+    body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: 1200 }),
   });
   if (!res.ok) {
     const detail = (await res.text()).slice(0, 200);
@@ -165,8 +165,10 @@ export async function onRequest({ request, env }) {
           return json({ error: "Tidak ada gambar valid untuk dianalisis." }, 400);
         }
         const r = await chat(VISION_MODEL, [{ role: "user", content }], apiKey);
+        if (url.searchParams.get("debug") === "1") {
+          return json({ _usage: r.usage, _raw: String(r.content).slice(0, 600) });
+        }
         const out2 = { job_id: rid("v"), status: "done", ...parseHooks(r.content) };
-        if (url.searchParams.get("debug") === "1") out2._usage = r.usage;
         return json(out2);
       }
     }
