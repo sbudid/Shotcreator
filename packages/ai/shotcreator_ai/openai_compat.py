@@ -54,7 +54,11 @@ class OpenAICompatProvider(AIProvider):
             self.base_url + "/chat/completions",
             data=body, method="POST",
             headers={"Content-Type": "application/json",
-                     "Authorization": f"Bearer {self.api_key}"},
+                     "Authorization": f"Bearer {self.api_key}",
+                     # command-code/Cloudflare menolak request tanpa UA browser
+                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                     "AppleWebKit/537.36 (KHTML, like Gecko) "
+                     "Chrome/126.0.0.0 Safari/537.36"},
         )
         with urllib.request.urlopen(req, timeout=self.timeout) as resp:
             raw = resp.read().decode("utf-8", errors="replace")

@@ -50,11 +50,22 @@ sudo apt install -y ffmpeg   # atau sesuai distro
 export PORT=8000
 export SHOTCREATOR_DATA=/var/lib/shotcreator/data
 export SHOTCREATOR_FONT=/usr/share/fonts/inter/Inter-ExtraBold.ttf  # opsional
-export SHOTCREATOR_AI_BASE_URL=http://localhost:20128/v1           # 9router
-# SHOTCREATOR_AI_API_KEY sengaja TIDAK di-set di server:
-# frontend mengirim api_key per-request (tidak disimpan di server).
+
+# AI via command-code (OpenAI-compatible). Key JANGAN di-commit — taruh di
+# .env (sudah di .gitignore) atau environment server.
+export COMMANDCODE_BASE_URL=https://api.commandcode.ai/provider/v1
+export COMMANDCODE_API_KEY=[isi di server, jangan di-commit]
+export COMMANDCODE_HOOK_MODEL=deepseek/deepseek-v4-flash      # hook teks
+export COMMANDCODE_VISION_MODEL=google/gemini-3.8-flash        # hook vision
+# Endpoint langsung /api/hooks pakai model hook:
+export SHOTCREATOR_AI_BASE_URL=https://api.commandcode.ai/provider/v1
+export SHOTCREATOR_AI_MODEL=deepseek/deepseek-v4-flash
+export SHOTCREATOR_AI_API_KEY=[isi di server, jangan di-commit]
 
 python3 server.py
+
+# Proses antrean hook (money_pending/ + vision_pending/) — jalan berkala:
+python3 process_pending.py
 ```
 
 ### systemd unit (contoh)
@@ -72,7 +83,13 @@ WorkingDirectory=/opt/Shotcreator/apps/api
 Environment=PORT=8000
 Environment=SHOTCREATOR_DATA=/var/lib/shotcreator/data
 Environment=SHOTCREATOR_FONT=/usr/share/fonts/inter/Inter-ExtraBold.ttf
-Environment=SHOTCREATOR_AI_BASE_URL=http://localhost:20128/v1
+Environment=COMMANDCODE_BASE_URL=https://api.commandcode.ai/provider/v1
+Environment=COMMANDCODE_API_KEY=[isi di server]
+Environment=COMMANDCODE_HOOK_MODEL=deepseek/deepseek-v4-flash
+Environment=COMMANDCODE_VISION_MODEL=google/gemini-3.8-flash
+Environment=SHOTCREATOR_AI_BASE_URL=https://api.commandcode.ai/provider/v1
+Environment=SHOTCREATOR_AI_MODEL=deepseek/deepseek-v4-flash
+Environment=SHOTCREATOR_AI_API_KEY=[isi di server]
 ExecStart=/usr/bin/python3 server.py
 Restart=always
 RestartSec=5
