@@ -173,6 +173,13 @@ $("btnGenHooks").addEventListener("click", async () => {
       });
       if (!res.ok) throw new Error("server: HTTP " + res.status);
       const data = await res.json();
+      if (data.top_lines && data.top_lines.length) {
+        $("topLines").value = (data.top_lines || []).join("\n");
+        $("botLines").value = (data.bot_lines || []).join("\n");
+        setStatus("Hook berhasil dibuat dari screenshot. Cek & edit dulu kalau perlu.", "ok");
+        btn.disabled = false;
+        return;
+      }
       if (data.error || !data.job_id) throw new Error(data.error || "job_id tidak ada");
       await pollVisionHooks(data.job_id);
     } catch (err) {
@@ -226,6 +233,13 @@ $("btnGenHooks").addEventListener("click", async () => {
       });
       if (!res.ok) throw new Error("server: HTTP " + res.status);
       const data = await res.json();
+      if (data.top_lines && data.top_lines.length) {
+        $("topLines").value = (data.top_lines || []).join("\n");
+        $("botLines").value = (data.bot_lines || []).join("\n");
+        setStatus("Hook berhasil dibuat AI money. Cek & edit dulu kalau perlu.", "ok");
+        btn.disabled = false;
+        return;
+      }
       if (data.error || !data.job_id) throw new Error(data.error || "job_id tidak ada");
       await pollMoneyHooks(data.job_id);
     } catch (err) {
@@ -269,11 +283,18 @@ $("btnCapture").addEventListener("click", async () => {
     });
     if (!res.ok) throw new Error("server: HTTP " + res.status);
     const data = await res.json();
-    if (data.error || !data.job_id) throw new Error(data.error || "job_id tidak ada");
-    // pakai polling yang sama dengan vision manual
-    $("btnGenHooks").disabled = true;
-    await pollVisionHooks(data.job_id);
-    $("btnGenHooks").disabled = false;
+    if (data.top_lines && data.top_lines.length) {
+      $("topLines").value = (data.top_lines || []).join("\n");
+      $("botLines").value = (data.bot_lines || []).join("\n");
+      setStatus("Hook berhasil dibuat dari hasil capture. Cek & edit dulu kalau perlu.", "ok");
+      $("btnGenHooks").disabled = false;
+    } else {
+      if (data.error || !data.job_id) throw new Error(data.error || "job_id tidak ada");
+      // pakai polling yang sama dengan vision manual
+      $("btnGenHooks").disabled = true;
+      await pollVisionHooks(data.job_id);
+      $("btnGenHooks").disabled = false;
+    }
   } catch (err) {
     if (stream) stream.getTracks().forEach((t) => t.stop());
     if (err.name === "NotAllowedError") {
