@@ -1,14 +1,8 @@
 /* ShotCreator web app — vanilla JS.
- * Konfigurasi AI (base_url, model, api_key) diset di server via env vars,
- * bukan oleh user. Frontend cuma kirim {story} ke /api/hooks.
- *
- * API contract:
- *   POST /api/hooks {story}
- *     -> {top_lines[], bot_lines[]}
- *   POST /api/jobs {images[], top_lines[], bot_lines[], audio?}
- *     -> {job_id}
- *   GET  /api/jobs/:id
- *     -> {status: "queued"|"rendering"|"done"|"error", progress?, video_url?, error?}
+ * AI 100% client-side: browser memanggil langsung api.commandcode.ai
+ * (OpenAI-compatible). API key milik user, disimpan di localStorage
+ * browser ini saja — tidak dikirim ke mana pun selain command-code.
+ * Render video juga 100% di browser (tanpa server).
  */
 "use strict";
 
@@ -20,29 +14,88 @@ const state = {
   pollTimer: null,
 };
 
-/* ---------- cek backend ---------- */
-// Kalau /api/health tidak terjangkau (mis. dibuka dari Pages publik tanpa
-// backend), sembunyikan opsi AI agar user tidak dapat error 405 yang membingungkan.
-(async function probeBackend() {
-  try {
-    const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), 5000);
-    const res = await fetch("/api/health", { signal: ctl.signal });
-    clearTimeout(t);
-    if (!res.ok) throw new Error("HTTP " + res.status);
-  } catch (e) {
-    const card = $("aiCard");
-    if (card) {
-      // sembunyikan kontrol AI, tampilkan penjelasan
-      const cfg = $("aiConfig");
-      if (cfg) cfg.classList.add("hidden");
-      const toggle = $("aiToggle");
-      if (toggle) { toggle.checked = false; toggle.disabled = true; }
-      const hint = $("aiOfflineHint");
-      if (hint) hint.hidden = false;
-    }
+/* ---------- AI langsung via command-code (tanpa backend) ---------- */
+const CC_BASE = "https://api.commandcode.ai/provider/v1";
+const CC_HOOK_MODEL = "deepseek/deepseek-v4-flash";   // hook dari teks
+const CC_VISION_MODEL = "google/gemini-3.8-flash";    // hook dari gambar
+const CC_SYS =
+  "Kamu penulis hook video vertikal TikTok/Reels berbahasa Indonesia. " +
+  "Balas HANYA dengan JSON seperti ini: " +
+  '{"top": ["BARIS ATAS 1", "BARIS ATAS 2"], "bottom": ["BARIS BAWAH"]}. ' +
+  "Huruf kapital semua, tiap baris maksimal 28 karakter, 1-2 baris per " +
+  "bagian, gaya bikin penasaran dan emosional. " +
+  "JANGAN mengklaim pengalaman pribadi seperti 'aku pakai' atau 'favoritku'.";
+
+function ccGetKey() { return (localStorage.getItem("cc_api_key") || "").trim(); }
+function ccSetKey(v) { localStorage.setItem("cc_api_key", (v || "").trim()); }
+
+async function ccChat(model, messages) {
+  const key = ccGetKey();
+  if (!key) {
+    throw new Error("Isi dulu API key command-code di bagian 3 (tersimpan di browser ini saja).");
   }
-})();
+  const res = await fetch(CC_BASE + "/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + key,
+    },
+    body: JSON.stringify({ model, messages, temperature: 0.7 }),
+  });
+  if (!res.ok) {
+    const t = (await res.text()).slice(0, 160);
+    throw new Error("AI HTTP " + res.status + (t ? ": " + t : ""));
+  }
+  const data = await res.json();
+  const c = data && data.choices && data.choices[0] &&
+    data.choices[0].message && data.choices[0].message.content;
+  if (!c) throw new Error("Respons AI tak terduga.");
+  return c;
+}
+
+function ccParseHooks(text) {
+  let t = (text || "").trim();
+  if (t.startsWith("```")) {
+    t = t.replace(/^```[a-z]*\n?/i, "").replace(/```\s*$/, "");
+  }
+  const obj = JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1));
+  const norm = (arr) => {
+    const out = [];
+    for (const x of arr || []) {
+      let s = String(x).trim().toUpperCase();
+      if (!s) continue;
+      if (s.length > 28) s = s.slice(0, 28).trim();
+      out.push(s);
+      if (out.length === 2) break;
+    }
+    return out;
+  };
+  const top = norm(obj.top);
+  const bot = norm(obj.bottom);
+  if (!top.length || !bot.length) {
+    throw new Error("AI tidak mengembalikan hook yang valid.");
+  }
+  return { top, bot };
+}
+
+function ccFillHooks(hooks, okMsg) {
+  $("topLines").value = hooks.top.join("\n");
+  $("botLines").value = hooks.bot.join("\n");
+  setStatus(okMsg, "ok");
+  $("btnGenHooks").disabled = false;
+}
+
+// Isi field key dari localStorage saat halaman dibuka
+document.addEventListener("DOMContentLoaded", () => {
+  const k = $("aiKey");
+  if (k) {
+    k.value = ccGetKey();
+    k.addEventListener("change", () => {
+      ccSetKey(k.value);
+      setStatus("API key tersimpan di browser ini.", "ok");
+    });
+  }
+});
 
 /* ---------- helpers ---------- */
 function setStatus(msg, kind) {
@@ -157,31 +210,30 @@ $("btnGenHooks").addEventListener("click", async () => {
   const mode = aiMode();
 
   if (mode === "vision") {
-    // Vision: kirim screenshot, money yang lihat dan buatkan hook
+    // Vision: AI melihat screenshot langsung via command-code
     if (!state.images.length) {
       btn.disabled = false;
       return setStatus("Upload dulu minimal 1 screenshot di bagian 1.", "error");
     }
-    setStatus("AI sedang melihat screenshot… (sekitar 1 menit)");
+    setStatus("AI sedang melihat screenshot…");
     try {
-      const res = await fetch("/api/hooks-vision", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          images: state.images.map((x) => ({ name: x.name, data_url: x.dataUrl })),
-        }),
-      });
-      if (!res.ok) throw new Error("server: HTTP " + res.status);
-      const data = await res.json();
-      if (data.top_lines && data.top_lines.length) {
-        $("topLines").value = (data.top_lines || []).join("\n");
-        $("botLines").value = (data.bot_lines || []).join("\n");
-        setStatus("Hook berhasil dibuat dari screenshot. Cek & edit dulu kalau perlu.", "ok");
-        btn.disabled = false;
-        return;
+      const content = [
+        { type: "text", text: CC_SYS + "\n\nBuatkan hook untuk gambar-gambar ini." },
+      ];
+      let n = 0;
+      for (const x of state.images.slice(0, 5)) {
+        const durl = x.dataUrl || "";
+        if (durl.length < 1500) continue; // lewati placeholder 1x1
+        if (!/^data:image\/(png|jpeg|webp|gif);base64,/.test(durl)) continue;
+        content.push({ type: "image_url", image_url: { url: durl } });
+        if (++n === 5) break;
       }
-      if (data.error || !data.job_id) throw new Error(data.error || "job_id tidak ada");
-      await pollVisionHooks(data.job_id);
+      if (!n) throw new Error("Tidak ada gambar valid untuk dianalisis.");
+      const text = await ccChat(CC_VISION_MODEL, [{ role: "user", content }]);
+      ccFillHooks(
+        ccParseHooks(text),
+        "Hook berhasil dibuat dari screenshot. Cek & edit dulu kalau perlu."
+      );
     } catch (err) {
       setStatus("Gagal membuat hook: " + err.message, "error");
       btn.disabled = false;
@@ -189,7 +241,7 @@ $("btnGenHooks").addEventListener("click", async () => {
     return;
   }
 
-  // Text mode: dari deskripsi cerita via 9router
+  // Text mode: dari deskripsi cerita via command-code (deepseek flash)
   if (mode === "text") {
     const story = $("story").value.trim();
     if (!story) {
@@ -198,17 +250,13 @@ $("btnGenHooks").addEventListener("click", async () => {
     }
     setStatus("Membuat hook dengan AI…");
     try {
-      const res = await fetch("/api/hooks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ story }),
-      });
-      if (!res.ok) throw new Error("server: HTTP " + res.status);
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      $("topLines").value = (data.top_lines || []).join("\n");
-      $("botLines").value = (data.bot_lines || []).join("\n");
-      setStatus("Hook berhasil dibuat. Cek & edit dulu kalau perlu, baru render.", "ok");
+      const text = await ccChat(CC_HOOK_MODEL, [
+        { role: "user", content: CC_SYS + "\n\nDeskripsi:\n" + story },
+      ]);
+      ccFillHooks(
+        ccParseHooks(text),
+        "Hook berhasil dibuat. Cek & edit dulu kalau perlu, baru render."
+      );
     } catch (err) {
       setStatus("Gagal membuat hook: " + err.message, "error");
     } finally {
@@ -217,33 +265,25 @@ $("btnGenHooks").addEventListener("click", async () => {
     return;
   }
 
-  // Money mode: dari deskripsi teks via antrean money
+  // Money mode: dari deskripsi teks via command-code (deepseek flash)
   if (mode === "money") {
     const story = $("story").value.trim();
     if (!story) {
       btn.disabled = false;
       return setStatus("Isi dulu deskripsi ceritanya.", "error");
     }
-    setStatus("AI money sedang membuat hook… (sekitar 1 menit)");
+    setStatus("AI money sedang membuat hook…");
     try {
-      const res = await fetch("/api/hooks-money", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ story }),
-      });
-      if (!res.ok) throw new Error("server: HTTP " + res.status);
-      const data = await res.json();
-      if (data.top_lines && data.top_lines.length) {
-        $("topLines").value = (data.top_lines || []).join("\n");
-        $("botLines").value = (data.bot_lines || []).join("\n");
-        setStatus("Hook berhasil dibuat AI money. Cek & edit dulu kalau perlu.", "ok");
-        btn.disabled = false;
-        return;
-      }
-      if (data.error || !data.job_id) throw new Error(data.error || "job_id tidak ada");
-      await pollMoneyHooks(data.job_id);
+      const text = await ccChat(CC_HOOK_MODEL, [
+        { role: "user", content: CC_SYS + "\n\nDeskripsi:\n" + story },
+      ]);
+      ccFillHooks(
+        ccParseHooks(text),
+        "Hook berhasil dibuat AI money. Cek & edit dulu kalau perlu."
+      );
     } catch (err) {
       setStatus("Gagal membuat hook: " + err.message, "error");
+    } finally {
       btn.disabled = false;
     }
     return;
@@ -275,26 +315,21 @@ $("btnCapture").addEventListener("click", async () => {
     stream.getTracks().forEach((t) => t.stop());
     stream = null;
 
-    setStatus("AI sedang melihat hasil capture… (sekitar 1 menit)", "");
-    const res = await fetch("/api/hooks-vision", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ images: [{ name: "capture.png", data_url: dataUrl }] }),
-    });
-    if (!res.ok) throw new Error("server: HTTP " + res.status);
-    const data = await res.json();
-    if (data.top_lines && data.top_lines.length) {
-      $("topLines").value = (data.top_lines || []).join("\n");
-      $("botLines").value = (data.bot_lines || []).join("\n");
-      setStatus("Hook berhasil dibuat dari hasil capture. Cek & edit dulu kalau perlu.", "ok");
-      $("btnGenHooks").disabled = false;
-    } else {
-      if (data.error || !data.job_id) throw new Error(data.error || "job_id tidak ada");
-      // pakai polling yang sama dengan vision manual
-      $("btnGenHooks").disabled = true;
-      await pollVisionHooks(data.job_id);
-      $("btnGenHooks").disabled = false;
-    }
+    setStatus("AI sedang melihat hasil capture…", "");
+    const text = await ccChat(CC_VISION_MODEL, [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: CC_SYS + "\n\nBuatkan hook untuk gambar ini." },
+          { type: "image_url", image_url: { url: dataUrl } },
+        ],
+      },
+    ]);
+    const hooks = ccParseHooks(text);
+    $("topLines").value = hooks.top.join("\n");
+    $("botLines").value = hooks.bot.join("\n");
+    setStatus("Hook berhasil dibuat dari hasil capture. Cek & edit dulu kalau perlu.", "ok");
+    $("btnGenHooks").disabled = false;
   } catch (err) {
     if (stream) stream.getTracks().forEach((t) => t.stop());
     if (err.name === "NotAllowedError") {
@@ -305,56 +340,6 @@ $("btnCapture").addEventListener("click", async () => {
   }
   btn.disabled = false;
 });
-
-async function pollVisionHooks(jobId) {
-  const btn = $("btnGenHooks");
-  for (let i = 0; i < 40; i++) {  // maks ~2 menit
-    await new Promise((r) => setTimeout(r, 3000));
-    try {
-      const res = await fetch("/api/hooks-vision/" + encodeURIComponent(jobId));
-      if (!res.ok) continue;
-      const data = await res.json();
-      if (data.status === "done") {
-        $("topLines").value = (data.top_lines || []).join("\n");
-        $("botLines").value = (data.bot_lines || []).join("\n");
-        setStatus("Hook berhasil dibuat dari screenshot. Cek & edit dulu kalau perlu.", "ok");
-        btn.disabled = false;
-        return;
-      }
-      if (data.status === "error") throw new Error(data.error || "gagal");
-      setStatus(`AI sedang melihat screenshot… (${i * 3} detik)`);
-    } catch (err) {
-      if (err.message && !err.message.includes("HTTP")) throw err;
-    }
-  }
-  setStatus("AI-nya kelamaan. Coba lagi atau pakai mode teks.", "error");
-  btn.disabled = false;
-}
-
-async function pollMoneyHooks(jobId) {
-  const btn = $("btnGenHooks");
-  for (let i = 0; i < 40; i++) {  // maks ~2 menit
-    await new Promise((r) => setTimeout(r, 3000));
-    try {
-      const res = await fetch("/api/hooks-money/" + encodeURIComponent(jobId));
-      if (!res.ok) continue;
-      const data = await res.json();
-      if (data.status === "done") {
-        $("topLines").value = (data.top_lines || []).join("\n");
-        $("botLines").value = (data.bot_lines || []).join("\n");
-        setStatus("Hook berhasil dibuat AI money. Cek & edit dulu kalau perlu.", "ok");
-        btn.disabled = false;
-        return;
-      }
-      if (data.status === "error") throw new Error(data.error || "gagal");
-      setStatus(`AI money sedang membuat hook… (${i * 3} detik)`);
-    } catch (err) {
-      if (err.message && !err.message.includes("HTTP")) throw err;
-    }
-  }
-  setStatus("AI-nya kelamaan. Coba lagi.", "error");
-  btn.disabled = false;
-}
 
 /* ---------- render job ---------- */
 const STATUS_LABEL = {
