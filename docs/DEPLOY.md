@@ -4,11 +4,12 @@ Arsitektur deploy: **frontend statis** + **API di mesin yang punya ffmpeg**.
 Video encoding tidak bisa jalan di Cloudflare Workers/Pages — butuh proses
 ffmpeg beneran, jadi API + renderer jalan di VPS/container.
 
-> **Catatan 2026-10-04:** AI hooks sekarang **100% client-side** — browser
-> memanggil langsung `api.commandcode.ai` (model `deepseek/deepseek-v4-flash`
-> untuk hook teks, `google/gemini-3.8-flash` untuk vision). API key milik user,
-> diisi sekali di aplikasi dan disimpan di `localStorage` browser saja.
-> Tidak ada backend, tidak ada secret di Cloudflare, tidak ada key di repo.
+> **Catatan 2026-10-04:** endpoint AI hooks (`/api/health`, `/api/hooks`,
+> `/api/hooks-vision`, `/api/hooks-money`) sekarang JUGA tersedia sebagai
+> **Pages Functions** (`functions/api/[[route]].js`) — serverless, ikut
+> ke-deploy otomatis tiap push ke `main`. Render video tetap client-side
+> (browser). Secret yang dibutuhkan: `COMMANDCODE_API_KEY` di
+> Pages → Settings → Environment Variables (tipe Secret, scope Production).
 > `server.py` + `process_pending.py` tetap ada untuk pemakaian via VPS.
 
 ```
