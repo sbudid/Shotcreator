@@ -95,6 +95,13 @@ document.addEventListener("DOMContentLoaded", () => {
       setStatus("API key tersimpan di browser ini.", "ok");
     });
   }
+  const dk = $("btnDelKey");
+  if (dk) dk.addEventListener("click", () => {
+    localStorage.removeItem("cc_api_key");
+    const k = $("aiKey");
+    if (k) k.value = "";
+    setStatus("API key dihapus dari browser ini.", "ok");
+  });
 });
 
 /* ---------- helpers ---------- */
