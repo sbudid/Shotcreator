@@ -80,7 +80,7 @@ function parseHooks(text) {
   return { top_lines: top, bot_lines: bottom };
 }
 
-async function chat(model, messages, apiKey) {
+async function chat(model, messages, apiKey, dbgRaw) {
   const res = await fetch(API_BASE + "/chat/completions", {
     method: "POST",
     headers: {
@@ -95,6 +95,9 @@ async function chat(model, messages, apiKey) {
     throw new Error("AI HTTP " + res.status + ": " + detail);
   }
   const data = await res.json();
+  if (dbgRaw) {
+    return json({ raw: JSON.stringify(data).slice(0, 3000) });
+  }
   const content = data && data.choices && data.choices[0] &&
     data.choices[0].message && data.choices[0].message.content;
   if (!content) throw new Error("Respons AI tak terduga");
@@ -187,7 +190,9 @@ export async function onRequest({ request, env }) {
         if (!n) {
           return json({ error: "Tidak ada gambar valid untuk dianalisis." }, 400);
         }
-        const text = await chat(VISION_MODEL, [{ role: "user", content }], apiKey);
+        const text = await chat(VISION_MODEL, [{ role: "user", content }], apiKey,
+          url.searchParams.get("dbg") === "raw");
+        if (url.searchParams.get("dbg") === "raw") return text;
         return json({ job_id: rid("v"), status: "done", ...parseHooks(text) });
       }
     }
