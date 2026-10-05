@@ -1,15 +1,5 @@
-/* ShotCreator web app — vanilla JS.
- * Konfigurasi AI (base_url, model, api_key) diset di server via env vars,
- * bukan oleh user. Frontend cuma kirim {story} ke /api/hooks.
- *
- * API contract:
- *   POST /api/hooks {story}
- *     -> {top_lines[], bot_lines[]}
- *   POST /api/jobs {images[], top_lines[], bot_lines[], audio?}
- *     -> {job_id}
- *   GET  /api/jobs/:id
- *     -> {status: "queued"|"rendering"|"done"|"error", progress?, video_url?, error?}
- */
+/* ShotCreator web app — vanilla JS. VERSI GRATIS: tanpa AI, 100% client-side.
+ * Upload screenshot, tulis hook manual, render video di browser. */
 "use strict";
 
 const $ = (id) => document.getElementById(id);
@@ -19,58 +9,6 @@ const state = {
   audio: null,  // {name, dataUrl}
   pollTimer: null,
 };
-
-/* ---------- password gate (akses buyer berbayar) ---------- */
-function getPass() { return sessionStorage.getItem("sc_pass") || ""; }
-function apiHeaders(extra) {
-  return Object.assign({ "X-App-Password": getPass() }, extra || {});
-}
-function showLock(bad) {
-  if (bad) sessionStorage.removeItem("sc_pass");
-  $("lockScreen").classList.remove("hidden");
-  $("lockErr").classList.toggle("hidden", !bad);
-  $("lockPass").value = "";
-  setTimeout(() => $("lockPass").focus(), 100);
-}
-function hideLock() { $("lockScreen").classList.add("hidden"); }
-
-async function tryUnlock() {
-  const pw = $("lockPass").value.trim();
-  if (!pw) return;
-  $("lockBtn").disabled = true;
-  try {
-    // Password dicek server duluan untuk semua /api/hooks* → 401 kalau salah.
-    const res = await fetch("/api/hooks-vision/__ping__", { headers: { "X-App-Password": pw } });
-    if (res.status === 401) { showLock(true); return; }
-    sessionStorage.setItem("sc_pass", pw);
-    hideLock();
-  } catch (err) {
-    // Gangguan jaringan: jangan kunci paksa, biarkan request AI yang menentukan.
-    sessionStorage.setItem("sc_pass", pw);
-    hideLock();
-  } finally {
-    $("lockBtn").disabled = false;
-  }
-}
-
-$("lockBtn").addEventListener("click", tryUnlock);
-$("lockPass").addEventListener("keydown", (e) => { if (e.key === "Enter") tryUnlock(); });
-if (!getPass()) showLock(false);
-
-/* ---------- cek backend ---------- */
-// Kalau /api/health tidak terjangkau, tampilkan peringatan di seksi AI.
-(async function probeBackend() {
-  try {
-    const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), 5000);
-    const res = await fetch("/api/health", { signal: ctl.signal });
-    clearTimeout(t);
-    if (!res.ok) throw new Error("HTTP " + res.status);
-  } catch (e) {
-    const hint = $("aiOfflineHint");
-    if (hint) hint.hidden = false;
-  }
-})();
 
 /* ---------- helpers ---------- */
 function setStatus(msg, kind) {
@@ -153,79 +91,6 @@ $("btnClearAudio").addEventListener("click", () => {
   state.audio = null;
   $("audioInfo").classList.add("hidden");
 });
-
-/* ---------- generate hooks (otomatis dari screenshot) ---------- */
-$("btnGenHooks").addEventListener("click", async () => {
-  const btn = $("btnGenHooks");
-  btn.disabled = true;
-  if (!state.images.length) {
-    btn.disabled = false;
-    return setStatus("Upload dulu minimal 1 screenshot di bagian 1.", "error");
-  }
-  // Vision: kirim screenshot, AI yang lihat dan buatkan hook
-  setStatus("AI sedang melihat screenshot… (sekitar 1 menit)");
-  try {
-    const res = await fetch("/api/hooks-vision", {
-      method: "POST",
-      headers: apiHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({
-        images: state.images.map((x) => ({ name: x.name, data_url: x.dataUrl })),
-      }),
-    });
-    if (res.status === 401) {
-      btn.disabled = false;
-      showLock(true);
-      return setStatus("Password salah / sesi berakhir. Masukkan password buyer.", "error");
-    }
-    if (!res.ok) {
-      let detail = "HTTP " + res.status;
-      try { const ed = await res.json(); if (ed && ed.error) detail += " — " + ed.error; } catch (_) {}
-      throw new Error("server: " + detail);
-    }
-    const data = await res.json();
-    if (data.top_lines && data.top_lines.length) {
-      $("topLines").value = (data.top_lines || []).join("\n");
-      $("botLines").value = (data.bot_lines || []).join("\n");
-      setStatus("Hook berhasil dibuat dari screenshot. Cek & edit dulu kalau perlu.", "ok");
-      btn.disabled = false;
-      return;
-    }
-    if (data.error || !data.job_id) throw new Error(data.error || "job_id tidak ada");
-    await pollVisionHooks(data.job_id);
-  } catch (err) {
-    setStatus("Gagal membuat hook: " + err.message, "error");
-    btn.disabled = false;
-  }
-});
-
-/* ---------- polling vision ---------- */
-async function pollVisionHooks(jobId) {
-  const btn = $("btnGenHooks");
-  for (let i = 0; i < 40; i++) {  // maks ~2 menit
-    await new Promise((r) => setTimeout(r, 3000));
-    try {
-      const res = await fetch("/api/hooks-vision/" + encodeURIComponent(jobId), {
-        headers: apiHeaders(),
-      });
-      if (res.status === 401) { showLock(true); throw new Error("password salah / sesi berakhir"); }
-      if (!res.ok) continue;
-      const data = await res.json();
-      if (data.status === "done") {
-        $("topLines").value = (data.top_lines || []).join("\n");
-        $("botLines").value = (data.bot_lines || []).join("\n");
-        setStatus("Hook berhasil dibuat dari screenshot. Cek & edit dulu kalau perlu.", "ok");
-        btn.disabled = false;
-        return;
-      }
-      if (data.status === "error") throw new Error(data.error || "gagal");
-      setStatus(`AI sedang melihat screenshot… (${i * 3} detik)`);
-    } catch (err) {
-      if (err.message && !err.message.includes("HTTP")) throw err;
-    }
-  }
-  setStatus("AI-nya kelamaan. Coba lagi atau pakai mode teks.", "error");
-  btn.disabled = false;
-}
 
 /* ---------- render job ---------- */
 const STATUS_LABEL = {

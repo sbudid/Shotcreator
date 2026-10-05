@@ -30,3 +30,6 @@ venv/
 .idea/
 .vscode/
 apps/api/data/
+
+# Node
+node_modules/
