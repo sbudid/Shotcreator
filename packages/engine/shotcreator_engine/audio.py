@@ -5,18 +5,28 @@ import subprocess
 
 
 def mux_audio(video_in: str, audio_in: str, video_out: str,
-              shortest: bool = True, audio_codec: str = "aac",
+              loop_audio: bool = True, audio_codec: str = "aac",
               volume: float = 1.0, overwrite: bool = True) -> str:
-    """Mux an audio track onto a silent video. Returns video_out."""
+    """Mux an audio track onto a silent video. Returns video_out.
+
+    The video always keeps its full duration: when the audio is shorter
+    than the video it is looped to fill it (loop_audio=True) instead of
+    cutting the video short.
+    """
     cmd = [
         "ffmpeg", "-y" if overwrite else "-n",
-        "-i", video_in, "-i", audio_in,
+        "-i", video_in,
+    ]
+    if loop_audio:
+        # repeat the audio indefinitely, then stop at the end of the video
+        cmd += ["-stream_loop", "-1"]
+    cmd += [
+        "-i", audio_in,
         "-c:v", "copy", "-c:a", audio_codec,
     ]
     if volume != 1.0:
         cmd += ["-af", f"volume={volume}"]
-    if shortest:
-        # trim to whichever stream is shorter (original scripts' behavior)
+    if loop_audio:
         cmd += ["-shortest"]
     cmd += [video_out]
     r = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
