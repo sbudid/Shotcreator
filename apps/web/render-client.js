@@ -217,5 +217,13 @@ async function crRender(opts) {
 
   const blob = new Blob(chunks, { type: mime.split(";")[0] });
   if (!blob.size) throw new Error("Hasil rekaman kosong.");
+  if (ext === "mp4" && typeof defragMp4 === "function") {
+    // Chrome menulis MP4 sebagai fragmented (mvhd duration=0) sehingga
+    // HP/galeri membaca durasinya salah. Gabung jadi MP4 normal.
+    try {
+      const fixed = defragMp4(await blob.arrayBuffer());
+      return { blob: new Blob([fixed], { type: "video/mp4" }), ext, mime: "video/mp4" };
+    } catch (e) { /* fallback: pakai blob asli */ }
+  }
   return { blob, ext, mime: blob.type };
 }
