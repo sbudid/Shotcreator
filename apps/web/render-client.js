@@ -6,6 +6,9 @@
  */
 "use strict";
 
+/* v2: audio di-loop mengisi durasi video; rekaman selalu sepanjang durasi penuh. */
+console.log("[shotcreator] render-client v2");
+
 const CR = {
   W: 1080, H: 1920, FPS: 30,
   BG: "#0b1526",
