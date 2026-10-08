@@ -60,7 +60,7 @@ WEB_DIR = os.path.join(REPO_ROOT, "apps", "web")
 
 MAX_BODY = 200 * 1024 * 1024          # 200 MB per request
 MAX_FILE = 30 * 1024 * 1024          # 30 MB per file
-DEFAULT_PAN_SECS = 13.0
+DEFAULT_PAN_SECS = 9.0
 
 os.makedirs(JOBS_DIR, exist_ok=True)
 os.makedirs(VIDEOS_DIR, exist_ok=True)
@@ -248,7 +248,7 @@ def render_job(jid: str, payload: dict):
         pan_secs = [max(1.0, float(x)) for x in pan_secs]
 
         # estimasi durasi untuk progress bar
-        total_est = sum(2.0 + 2.0 + p for p in pan_secs)
+        total_est = sum(1.0 + 1.0 + p for p in pan_secs)
         stop_flag = {"stop": False}
 
         def progress_loop():

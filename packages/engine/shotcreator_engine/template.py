@@ -36,8 +36,8 @@ class Template:
     line_height_ratio: float = 1.22
     min_font_size: int = 36
     # motion
-    dwell_top: float = 2.0
-    dwell_bot: float = 2.0
+    dwell_top: float = 1.0
+    dwell_bot: float = 1.0
     pan_frac: float = 0.75
     # encode (bisa dioverride via env: SHOTCREATOR_PRESET, SHOTCREATOR_CRF)
     crf: int = 20

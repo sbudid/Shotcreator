@@ -79,13 +79,13 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--image", action="append", required=True,
                    help="screenshot image (repeatable for multi-segment)")
     r.add_argument("--pan-secs", type=float, action="append", default=[],
-                   help="pan seconds per --image (default 13 each)")
+                   help="pan seconds per --image (default 9 each)")
     r.add_argument("--top", required=True, help='hook lines, "\\n" separated')
     r.add_argument("--bot", required=True, help='bottom lines, "\\n" separated')
     r.add_argument("--audio", default=None, help="audio file to mux (mp3/m4a)")
     r.add_argument("-o", "--output", required=True, help="output mp4 path")
-    r.add_argument("--dwell-top", type=float, default=2.0)
-    r.add_argument("--dwell-bot", type=float, default=2.0)
+    r.add_argument("--dwell-top", type=float, default=1.0)
+    r.add_argument("--dwell-bot", type=float, default=1.0)
     r.add_argument("--pan-frac", type=float, default=0.75)
     r.set_defaults(func=cmd_render)
 
@@ -104,7 +104,7 @@ def main(argv=None) -> None:
     args = build_parser().parse_args(argv)
     if args.cmd == "render":
         if not args.pan_secs:
-            args.pan_secs = [13.0] * len(args.image)
+            args.pan_secs = [9.0] * len(args.image)
         if len(args.pan_secs) != len(args.image):
             raise SystemExit("--pan-secs count must match --image count")
     args.func(args)
