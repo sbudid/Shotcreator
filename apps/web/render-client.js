@@ -17,6 +17,7 @@ const CR = {
   BOT_Y: 1568, BOT_SIZE: 62,
   MAX_TEXT_W: 960, LINE_H: 1.22, MIN_FONT: 36,
   DWELL_TOP: 1.0, DWELL_BOT: 1.0, PAN_SECS: 9.0, PAN_FRAC: 1.0,
+  MIN_SINGLE_STATIC: 15.0, // durasi minimal 1 gambar statis (tanpa scroll)
   FONT: "Arial, 'Segoe UI', sans-serif",
 };
 
@@ -108,10 +109,10 @@ function crEase(t) {
 }
 
 /* Offset crop vertikal utk waktu t (detik) dalam satu segmen gambar. */
-function crOffsetAt(tSec, travel) {
+function crOffsetAt(tSec, travel, dwellTop, dwellBot) {
   const t = CR;
-  if (tSec < t.DWELL_TOP) return 0;
-  const pt = tSec - t.DWELL_TOP;
+  if (tSec < dwellTop) return 0;
+  const pt = tSec - dwellTop;
   if (pt < t.PAN_SECS) return travel * crEase(pt / t.PAN_SECS);
   return travel;
 }
@@ -139,7 +140,15 @@ async function crRender(opts) {
     shots.push({ im, scaledH, travel });
   }
 
-  const segSecs = t.DWELL_TOP + t.PAN_SECS + t.DWELL_BOT;
+  // Kasus khusus: 1 gambar yang muat penuh tanpa scroll -> minimal
+  // MIN_SINGLE_STATIC detik (dwell diperpanjang). Path multi-scene dan
+  // gambar yang di-scroll tidak berubah.
+  let dwellTop = t.DWELL_TOP, dwellBot = t.DWELL_BOT;
+  if (shots.length === 1 && shots[0].travel === 0) {
+    const need = t.MIN_SINGLE_STATIC - (dwellTop + t.PAN_SECS + dwellBot);
+    if (need > 0) { dwellTop += need / 2; dwellBot += need / 2; }
+  }
+  const segSecs = dwellTop + t.PAN_SECS + dwellBot;
   const totalSecs = segSecs * shots.length;
 
   const canvas = document.createElement("canvas");
@@ -185,7 +194,7 @@ async function crRender(opts) {
     const segT = Math.max(0, el - segIdx * segSecs);
     const s = shots[segIdx];
     // offset dalam px gambar skala: travel dihitung pd skala card, konversi ke crop src
-    const offCard = crOffsetAt(segT, s.travel);
+    const offCard = crOffsetAt(segT, s.travel, dwellTop, dwellBot);
     const offSrc = s.scaledH > t.CARD_H ? offCard * (s.im.naturalHeight / s.scaledH) : 0;
     crDrawFrame(ctx, s.im, s.scaledH, offSrc, topLines, botLines, topSize, botSize);
     if (onProgress) onProgress(Math.min(1, Math.max(0, el / recSecs)));
