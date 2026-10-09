@@ -16,7 +16,7 @@ const CR = {
   TOP_Y: 96, TOP_SIZE: 88,
   BOT_Y: 1568, BOT_SIZE: 62,
   MAX_TEXT_W: 960, LINE_H: 1.22, MIN_FONT: 36,
-  DWELL_TOP: 2.0, DWELL_BOT: 2.0, PAN_SECS: 13.0, PAN_FRAC: 0.75,
+  DWELL_TOP: 1.0, DWELL_BOT: 1.0, PAN_SECS: 9.0, PAN_FRAC: 0.75,
   FONT: "Arial, 'Segoe UI', sans-serif",
 };
 
