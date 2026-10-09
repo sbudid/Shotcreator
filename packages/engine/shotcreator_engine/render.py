@@ -67,7 +67,15 @@ def render_video(segments: Sequence[Segment],
     try:
         for img, pan_s, max_off in shots:
             travel = int(max_off * t.pan_frac)
-            for off in iter_offsets(t.dwell_top, pan_s, t.dwell_bot, travel, t.fps):
+            # Kasus khusus: 1 gambar statis (tanpa scroll) -> minimal 15 detik.
+            # Tidak mengubah path multi-scene / gambar yang di-scroll.
+            dwell_top, dwell_bot = t.dwell_top, t.dwell_bot
+            if len(shots) == 1 and travel == 0:
+                need = 15.0 - (dwell_top + pan_s + dwell_bot)
+                if need > 0:
+                    dwell_top += need / 2
+                    dwell_bot += need / 2
+            for off in iter_offsets(dwell_top, pan_s, dwell_bot, travel, t.fps):
                 frame = bg.copy()
                 crop = img.crop((0, off, t.card_w, off + t.card_h))
                 frame.paste(crop, (t.card_x, t.card_y), mask)
