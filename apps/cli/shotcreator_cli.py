@@ -86,7 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("-o", "--output", required=True, help="output mp4 path")
     r.add_argument("--dwell-top", type=float, default=1.0)
     r.add_argument("--dwell-bot", type=float, default=1.0)
-    r.add_argument("--pan-frac", type=float, default=0.75)
+    r.add_argument("--pan-frac", type=float, default=1.0)
     r.set_defaults(func=cmd_render)
 
     h = sub.add_parser("hooks", help="generate hook text via AI provider")
