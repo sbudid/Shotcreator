@@ -38,7 +38,7 @@ class Template:
     # motion
     dwell_top: float = 1.0
     dwell_bot: float = 1.0
-    pan_frac: float = 0.75
+    pan_frac: float = 1.0
     # encode (bisa dioverride via env: SHOTCREATOR_PRESET, SHOTCREATOR_CRF)
     crf: int = 20
     preset: str = "veryfast"
